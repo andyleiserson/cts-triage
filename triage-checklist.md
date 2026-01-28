@@ -12,8 +12,7 @@ A selector is considered "triaged" if:
 ## Status Legend
 
 - ✅ **TRIAGED** - Has bug reference/note in fail.lst AND appears in triage.md
-- ❌ **UNTRIAGED** - Only has percentage in fail.lst, not in triage.md
-- 🔍 **NEEDS_INVESTIGATION** - Marked for investigation (git lock, insufficient info, etc.)
+- ❌ **UNTRIAGED** - Missing from fail.lst, triage.md, or both, or manually marked for re-triage
 
 ---
 
@@ -303,11 +302,10 @@ A selector is considered "triaged" if:
   - Has dedicated triage report
   - 1 failure: unterminated block comments not rejected
 - ✅ Line 181: `webgpu:shader,validation,parse,diagnostic:*` - 50%, #6458
-- ✅ Line 182: `webgpu:shader,validation,parse,identifiers:*` - 81%, #4406
 - ✅ Line 183: `webgpu:shader,validation,parse,literal:*` - 96%, #7046
 - ✅ Line 184: `webgpu:shader,validation,parse,must_use:*` - 97%, #8876
 - ✅ Line 185: `webgpu:shader,validation,parse,requires:*` - 14%, #8884
-- ✅ Line 186: `webgpu:shader,validation,parse,shadow_builtins:*` - 60%, #4406, #7405
+- ❌ Line 186: `webgpu:shader,validation,parse,shadow_builtins:*` - 60%, #7405
 
 ## Shader IO
 - ✅ Line 187: `webgpu:shader,validation,shader_io,align:*` - 98%, https://github.com/gfx-rs/wgpu/issues/8892

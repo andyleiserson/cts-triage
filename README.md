@@ -1706,11 +1706,7 @@ Selector: `webgpu:shader,validation,types,*`
 
 **Root cause:** Naga doesn't accept trailing commas in template argument lists (e.g., `vec3<u32,>`, `mat2x2<f32,>`, `array<u32,4,>`). WebGPU spec's `template_arg_comma_list` production explicitly allows optional trailing comma.
 
-### 2. Keyword shadowing (10 failures)
-
-**Root cause:** Naga incorrectly treats predeclared type aliases (`vec2f`, `mat2x2f`, `array`, `mat2x2`) as non-shadowable keywords. WGSL spec allows shadowing predeclared aliases but not reserved keywords (`struct`, `fn`, `let`, `var`).
-
-### 3. f16 usage without enable directive (9 failures)
+### 2. f16 usage without enable directive (9 failures)
 
 **Root cause:** Naga doesn't fully implement `enable` directive checking. Using f16 without `enable f16;` should produce validation error. Related issues: #5476, #4384.
 
@@ -1718,7 +1714,7 @@ Selector: `webgpu:shader,validation,types,*`
 
 See: `docs/cts-triage/shader_validation_types.md` for details.
 
-**Related issues:** https://github.com/gfx-rs/wgpu/issues/8899, https://github.com/gfx-rs/wgpu/issues/4406, TODO
+**Related issues:** https://github.com/gfx-rs/wgpu/issues/8899, TODO
 
 ---
 
