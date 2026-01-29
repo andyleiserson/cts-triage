@@ -283,7 +283,7 @@ A selector is considered "triaged" if:
 - ✅ `webgpu:shader,validation,parse,literal:*`
 - ✅ `webgpu:shader,validation,parse,must_use:*`
 - ✅ `webgpu:shader,validation,parse,requires:*`
-- ❌ `webgpu:shader,validation,parse,shadow_builtins:*`
+- ✅ `webgpu:shader,validation,parse,shadow_builtins:*`
 
 ## Shader IO
 - ✅ `webgpu:shader,validation,shader_io,align:*`

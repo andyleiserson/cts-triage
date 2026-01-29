@@ -1370,6 +1370,30 @@ Selectors:
 
 ---
 
+# Shader Functions Restrictions
+
+Selector: `webgpu:shader,validation,functions,restrictions:*`
+
+**Overall Status:** 98% pass (if external texture is enabled)
+
+**What it tests:** Validates that attributes can only be applied in appropriate contexts (function declaration, parameter, or return value).
+
+## 1. Invalid function attributes accepted
+
+**Root cause:** Naga accepts `@id` and `@workgroup_size` attributes on regular functions when they should only be valid on specific contexts:
+- `@id` should only be valid on override declarations (not functions at all)
+- `@workgroup_size` should only be valid on compute entry point functions (functions with `@compute`)
+
+## 2. Unrestricted pointer parameters accepted without feature
+
+**What it tests:** Validates that certain pointer expressions (pointers to struct members, array elements within structs) require the `unrestricted_pointer_parameters` WGSL feature to be enabled.
+
+**Root cause:** Without the `unrestricted_pointer_parameters` feature enabled, Naga should reject complex pointer expressions like `&f_constructible.b` or `&f_struct_with_array.a[1].b`, but currently accepts them.
+
+See: `docs/cts-triage/shader_functions_restrictions.md` for details.
+
+---
+
 # Shader Parse Blankspace
 
 Selector: `webgpu:shader,validation,parse,blankspace:*`
@@ -1406,31 +1430,7 @@ See: `docs/cts-triage/shader_parse_comments.md`
 
 ---
 
-# Shader Functions Restrictions
-
-Selector: `webgpu:shader,validation,functions,restrictions:*`
-
-**Overall Status:** 98% pass (if external texture is enabled)
-
-**What it tests:** Validates that attributes can only be applied in appropriate contexts (function declaration, parameter, or return value).
-
-## 1. Invalid function attributes accepted
-
-**Root cause:** Naga accepts `@id` and `@workgroup_size` attributes on regular functions when they should only be valid on specific contexts:
-- `@id` should only be valid on override declarations (not functions at all)
-- `@workgroup_size` should only be valid on compute entry point functions (functions with `@compute`)
-
-## 2. Unrestricted pointer parameters accepted without feature
-
-**What it tests:** Validates that certain pointer expressions (pointers to struct members, array elements within structs) require the `unrestricted_pointer_parameters` WGSL feature to be enabled.
-
-**Root cause:** Without the `unrestricted_pointer_parameters` feature enabled, Naga should reject complex pointer expressions like `&f_constructible.b` or `&f_struct_with_array.a[1].b`, but currently accepts them.
-
-See: `docs/cts-triage/shader_functions_restrictions.md` for details.
-
----
-
-# `@group` attribute
+# Shader Parse `@group` attribute
 
 Selectors:
 - `webgpu:shader,validation,parse,attribute:expressions:value="val";attribute="group"`
@@ -1449,11 +1449,67 @@ See: `docs/cts-triage/shader_parse_group.md` for detailed analysis.
 
 ---
 
-# `requires` directive
+# Shader Parse `requires` directive
 
 Selector: `webgpu:shader,validation,parse,requires:*`
 
 Missing `wgslLanguageFeatures` support. (#8884)
+
+---
+
+# Shader Parse Shadow Builtins
+
+Selector: `webgpu:shader,validation,parse,shadow_builtins:*`
+
+**Overall Status:** 25P/5F/0S (83.33% pass rate)
+
+**What it tests:** Validates that WGSL allows user-defined identifiers to shadow built-in functions, types, and keywords in appropriate scoping contexts.
+
+## Root Causes
+
+The 5 failures fall into three distinct categories:
+
+### 1. Function Parameter Shadowing (1 failure)
+
+**Root cause:** Naga's parser rejects using a builtin type like `i32` as both a parameter name and a type in the same function signature. When `i32` is used as a parameter name (e.g., `fn f(i32: i32)`), it should shadow the builtin type for that parameter binding, but the type annotation position should still resolve to the original builtin before the shadow takes effect.
+
+**Example shader:**
+```wgsl
+fn f(f: i32, i32: i32, t: i32) -> i32 { return i32; }
+```
+
+**Error:**
+```
+unexpected expression - needs to be an identifier resolving to a type declaration
+```
+
+**Fix needed:** Update Naga's WGSL parser to properly handle shadowing in function parameter contexts where the parameter name creates a new binding that shadows existing identifiers, but the type position should still resolve to the original builtin.
+
+### 2. Determinant Const Evaluation (2 failures)
+
+**Selector:** `shadow_hides_builtin:inject="none"` and `inject="sibling"` (determinant subcase)
+
+**Root cause:** Naga fails to materialize abstract numeric literals to concrete `f32` types when calling `determinant()`. The literals `1, 2, 3, 4` create abstract integers/floats that should be materialized to `f32` when constructing a `mat2x2`, but the evaluation pipeline fails.
+
+**Error:**
+```
+failed to convert expression to a concrete type: Subexpression(s) are not constant
+```
+
+**Fix needed:** Investigate Naga's abstract numeric type materialization for the `determinant` builtin. This is a broader const evaluation issue, not specific to shadowing.
+
+### 3. Texture External Capability (2 failures)
+
+**Selector:** `shadow_hides_builtin_handle_type:inject="none"` and `inject="function"` (texture_external subcase)
+
+**Root cause:** The `TEXTURE_EXTERNAL` capability is not enabled by default in wgpu/Naga.
+
+**Error:**
+```
+Type '' is invalid - Capability TEXTURE_EXTERNAL is required
+```
+
+**Fix needed:** Investigation needed into whether wgpu should enable the `TEXTURE_EXTERNAL` capability by default, whether the CTS runner needs to enable it, or whether this is a broader feature implementation gap.
 
 ---
 
