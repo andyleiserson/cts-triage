@@ -762,6 +762,28 @@ See: `docs/cts-triage/render_pipeline_vertex_state.md`
 
 ---
 
+# Shader Validation Variable Declaration
+
+Selector: `webgpu:shader,validation,decl,var:*`
+
+**Overall Status:** 773P/17F/3S (97.48% pass rate)
+
+**Root causes:**
+
+1. **Trailing commas in address space/access mode (9 failures)** - Parser rejects valid WGSL syntax like `var<private,>` with trailing comma in template arguments. Affects `address_space_access_mode:*` (7 failures) and `var_access_mode_bad_other_template_contents:*` (2 failures).
+
+2. **Atomic types in read-only storage (4 failures)** - Naga incorrectly accepts atomic types in `var<storage, read>` declarations. WebGPU spec requires atomics only in read-write storage. Affects `module_scope_types:*` tests with atomic types and read access mode.
+
+3. **Storage textures in vertex shaders (4 failures)** - wgpu accepts write-only and read-write storage textures in vertex shaders, but WebGPU spec prohibits this. Affects `shader_stage:*` tests. Same validation gap as in createBindGroupLayout tests.
+
+**Fix needed:** Add parser support for trailing commas in var template arguments. Add validation to reject atomics in read-only storage. Add validation to reject storage textures in vertex shader stage.
+
+See: `docs/cts-triage/shader_validation_decl_var.md`
+
+**Related issues:** https://github.com/gfx-rs/wgpu/issues/8899, TODO
+
+---
+
 # Bitwise Shift Validation
 
 Selector: `webgpu:shader,validation,expression,binary,bitwise_shift:*`
@@ -1650,28 +1672,6 @@ Selector: `webgpu:shader,validation,types,*`
 **Impact:** Highest number of failures in this category.
 
 See: `docs/cts-triage/shader_validation_types.md` for detailed analysis of all 6 failure patterns.
-
----
-
-# Shader Validation Variables
-
-Selector: `webgpu:shader,validation,variables:*`
-
-**Overall Status:** 773P/17F/3S (97.48% pass rate)
-
-**Root causes:**
-
-1. **Trailing commas in address space/access mode (9 failures)** - Parser rejects valid WGSL syntax like `var<private,>` with trailing comma in template arguments. Affects `address_space_access_mode:*` (7 failures) and `var_access_mode_bad_other_template_contents:*` (2 failures).
-
-2. **Atomic types in read-only storage (4 failures)** - Naga incorrectly accepts atomic types in `var<storage, read>` declarations. WebGPU spec requires atomics only in read-write storage. Affects `module_scope_types:*` tests with atomic types and read access mode.
-
-3. **Storage textures in vertex shaders (4 failures)** - wgpu accepts write-only and read-write storage textures in vertex shaders, but WebGPU spec prohibits this. Affects `shader_stage:*` tests. Same validation gap as in createBindGroupLayout tests.
-
-**Fix needed:** Add parser support for trailing commas in var template arguments. Add validation to reject atomics in read-only storage. Add validation to reject storage textures in vertex shader stage.
-
-See: `docs/cts-triage/shader_validation_variables.md`
-
-**Related issues:** https://github.com/gfx-rs/wgpu/issues/8899, TODO
 
 ---
 
