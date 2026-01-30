@@ -137,7 +137,7 @@ A selector is considered "triaged" if:
 ## Declarations
 - ✅ `webgpu:shader,validation,decl,context_dependent_resolution:*`
 - ✅ `webgpu:shader,validation,decl,override:*`
-- ❌ `webgpu:shader,validation,decl,var:*`
+- ✅ `webgpu:shader,validation,decl,var:*`
 
 ## Expression Access
 - ✅ `webgpu:shader,validation,expression,access,array:*`

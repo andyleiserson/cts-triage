@@ -766,21 +766,24 @@ See: `docs/cts-triage/render_pipeline_vertex_state.md`
 
 Selector: `webgpu:shader,validation,decl,var:*`
 
-**Overall Status:** 773P/17F/3S (97.48% pass rate)
+**Overall Status:** 783P/10F/0S (98.74% pass rate)
 
 **Root causes:**
 
-1. **Trailing commas in address space/access mode (9 failures)** - Parser rejects valid WGSL syntax like `var<private,>` with trailing comma in template arguments. Affects `address_space_access_mode:*` (7 failures) and `var_access_mode_bad_other_template_contents:*` (2 failures).
+1. **Trailing comma in address space template (1 failure)** - Parser rejects valid WGSL syntax `var<function,>` with trailing comma. Affects `address_space_access_mode:address_space="function";trailing_comma=true`.
 
-2. **Atomic types in read-only storage (4 failures)** - Naga incorrectly accepts atomic types in `var<storage, read>` declarations. WebGPU spec requires atomics only in read-write storage. Affects `module_scope_types:*` tests with atomic types and read access mode.
+2. **Atomic types in read-only storage (4 failures)** - Naga incorrectly accepts atomic types in `var<storage, read>` declarations. WebGPU spec requires atomics only in read-write storage. Affects `module_scope_types:*` tests with `atomic<i32>` and `atomic<u32>` in `storage_ro`.
 
-3. **Storage textures in vertex shaders (4 failures)** - wgpu accepts write-only and read-write storage textures in vertex shaders, but WebGPU spec prohibits this. Affects `shader_stage:*` tests. Same validation gap as in createBindGroupLayout tests.
-
-**Fix needed:** Add parser support for trailing commas in var template arguments. Add validation to reject atomics in read-only storage. Add validation to reject storage textures in vertex shader stage.
+3. **Shader stage restrictions (5 failures)** - wgpu accepts variables in shader stages where they're prohibited:
+   - Write-only storage textures in vertex shaders (`handle_wo`)
+   - Read-write storage textures in vertex shaders (`handle_rw`)
+   - Read-write storage buffers in vertex shaders (`storage_rw`)
+   - Workgroup variables in vertex shaders
+   - Workgroup variables in fragment shaders
 
 See: `docs/cts-triage/shader_validation_decl_var.md`
 
-**Related issues:** https://github.com/gfx-rs/wgpu/issues/8899, TODO
+**Related issues:** https://github.com/gfx-rs/wgpu/issues/8925, TODO
 
 ---
 

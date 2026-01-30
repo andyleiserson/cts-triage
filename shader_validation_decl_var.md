@@ -1,43 +1,54 @@
-Good! Now I have enough information to create a comprehensive triage report. Let me summarize the findings:
+# Shader Validation Variable Declaration
 
-## Summary of Triage Findings
+Selector: `webgpu:shader,validation,decl,var:*`
 
-**Overall Status:** 773P/17F/3S (97.48%/2.14%/0.38%)
+**Overall Status:** 783P/10F/0S (98.74% pass rate)
 
-**Test Distribution:**
-- Total tests: 793 (run twice for async variations, so 803 listed)
-- 20 subcategories identified
+## Failing Tests
 
-**Passing Sub-suites (100% pass rate):**
-1. binding_collisions (32 tests)
-2. binding_collision_unused_helper (1 test)
-3. binding_point_on_function_var (4 tests)
-4. binding_point_on_non_resources (8 tests)
-5. binding_point_on_resources (16 tests)
-6. explicit_access_mode (18 tests)
-7. function_addrspace_at_module_scope (2 tests)
-8. function_scope_types (116 tests)
-9. handle_initializer (4 tests)
-10. implicit_access_mode (6 tests)
-11. initializer_kind (20 tests)
-12. initializer_type (1 test)
-13. module_scope_initializers (10 tests)
-14. read_access (13 tests)
-15. var_access_mode_bad_template_delim (32 tests)
-16. write_access (13 tests)
+### 1. Trailing comma in address space template (1 failure)
 
-**Sub-suites with Failures:**
-1. address_space_access_mode: 33P/7F (82.5%) - Trailing comma issue
-2. module_scope_types: 402P/4F (99.0%) - Atomic in read-only storage
-3. shader_stage: 20P/4F/3S (74.1%) - Storage textures in vertex shaders
-4. var_access_mode_bad_other_template_contents: 22P/2F (91.7%) - Trailing comma issue
+**Test:** `address_space_access_mode:address_space="function";access_mode="";trailing_comma=true`
 
-**Root Causes Identified:**
+**Error:**
+```
+Shader '' parsing error: expected template args end, found ","
+  ┌─ wgsl:3:19
+  │
+3 │       var<function,> x : u32;
+  │                   ^ expected template args end
+```
 
-1. **Trailing Commas (9 failures)**: Naga doesn't accept trailing commas in address space/access mode template arguments like `var<private,>`. This is tracked by issue #6394.
+**Root cause:** Naga's WGSL parser does not accept trailing commas in template argument lists like `var<function,>`.
 
-2. **Atomic Types in Read-Only Storage (4 failures)**: wgpu/Naga accepts atomic types in `var<storage, read>` declarations, but the WebGPU spec requires atomics to only be allowed in read-write storage.
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/8925
 
-3. **Storage Textures in Vertex Shaders (4 failures)**: wgpu accepts write-only and read-write storage textures in vertex shaders, but the WebGPU spec prohibits this. This is a known validation gap also affecting createBindGroupLayout tests.
+### 2. Atomic types in read-only storage (4 failures)
 
-The triage is complete. All failures have been categorized and root causes identified. The issues are either parsing limitations (trailing commas) or validation gaps (atomics in read-only storage, storage textures in vertex shaders).
+**Tests:**
+- `module_scope_types:type="atomic<i32>";kind="storage_ro";via_alias=false`
+- `module_scope_types:type="atomic<i32>";kind="storage_ro";via_alias=true`
+- `module_scope_types:type="atomic<u32>";kind="storage_ro";via_alias=false`
+- `module_scope_types:type="atomic<u32>";kind="storage_ro";via_alias=true`
+
+**Error:**
+```
+EXPECTATION FAILED: Expected validation error
+---- shader ----
+@group(0) @binding(0) var<storage, read> foo : atomic<i32>;
+```
+
+**Root cause:** wgpu/Naga accepts atomic types in `var<storage, read>` declarations, but the WebGPU spec requires atomics only in read-write storage.
+
+### 3. Shader stage restrictions (5 failures)
+
+**Tests:**
+- `shader_stage:stage="vertex";kind="handle_wo"` - write-only storage texture in vertex
+- `shader_stage:stage="vertex";kind="handle_rw"` - read-write storage texture in vertex
+- `shader_stage:stage="vertex";kind="storage_rw"` - read-write storage buffer in vertex
+- `shader_stage:stage="vertex";kind="workgroup"` - workgroup variable in vertex
+- `shader_stage:stage="fragment";kind="workgroup"` - workgroup variable in fragment
+
+**Root cause:** wgpu accepts variables in shader stages where they're prohibited per WebGPU spec:
+- Storage textures with write access are not allowed in vertex shaders
+- Workgroup variables are only allowed in compute shaders
