@@ -352,26 +352,6 @@ Selector: `webgpu:api,validation,encoding,render_bundle:*`
 
 ---
 
-# Error Scope
-
-Selector: `webgpu:api,validation,error_scope:*`
-
-**Overall Status:** 36P/12F/0S (75%/25%/0%)
-
-## 1. Metal backend crashes on OOM texture allocation
-
-Selector: All tests with `errorType="out-of-memory"` or `errorFilter="out-of-memory"`
-
-**Root cause:** Metal's `new_texture` returns null on OOM. Code returns OutOfMemory error correctly, but null pointer remains. When autoreleasepool exits, metal crate's Drop panics on null pointer.
-
-**Fix needed:** Add `std::mem::forget(raw)` before returning OutOfMemory error to prevent drop of null pointer.
-
-See: `docs/cts-triage/error_scope.md` for details.
-
-**Related issue:** https://github.com/gfx-rs/wgpu/issues/7357
-
----
-
 # getBindGroupLayout
 
 Selector: `webgpu:api,validation,getBindGroupLayout:*`
