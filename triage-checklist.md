@@ -27,7 +27,7 @@ A selector is considered "triaged" if:
 
 ## Capability Checks
 - ✅ `webgpu:api,validation,capability_checks,features,*`
-- ❌ `webgpu:api,validation,capability_checks,limits,*`
+- ✅ `webgpu:api,validation,capability_checks,limits,*`
 
 ## Compute Pipeline
 - ✅ `webgpu:api,validation,compute_pipeline:limits,workgroup_storage_size:*`
@@ -221,8 +221,8 @@ A selector is considered "triaged" if:
 - ✅ `derivatives:*`
 
 ### Dot Products (Packed)
-- ❌ `dot4I8Packed:*`
-- ❌ `dot4U8Packed:*`
+- ✅ `dot4I8Packed:*`
+- ✅ `dot4U8Packed:*`
 
 ### Pack Functions
 - ✅ `pack2x16float:*`
@@ -230,10 +230,10 @@ A selector is considered "triaged" if:
 - ✅ `pack2x16unorm:*`
 - ✅ `pack4x8snorm:*`
 - ✅ `pack4x8unorm:*`
-- ❌ `pack4xI8:*`
-- ❌ `pack4xI8Clamp:*`
-- ❌ `pack4xU8:*`
-- ❌ `pack4xU8Clamp:*`
+- ✅ `pack4xI8:*`
+- ✅ `pack4xI8Clamp:*`
+- ✅ `pack4xU8:*`
+- ✅ `pack4xU8Clamp:*`
 
 ### Unpack Functions
 - ✅ `unpack2x16float:*`
@@ -241,8 +241,8 @@ A selector is considered "triaged" if:
 - ✅ `unpack2x16unorm:*`
 - ✅ `unpack4x8snorm:*`
 - ✅ `unpack4x8unorm:*`
-- ❌ `unpack4xI8:*`
-- ❌ `unpack4xU8:*`
+- ✅ `unpack4xI8:*`
+- ✅ `unpack4xU8:*`
 
 ### Texture Functions
 - ✅ `textureDimensions:*`
@@ -264,7 +264,7 @@ A selector is considered "triaged" if:
 - ✅ `webgpu:shader,validation,expression,early_evaluation:*`
 - ✅ `webgpu:shader,validation,expression,matrix,*`
 - ✅ `webgpu:shader,validation,expression,precedence:*`
-- ❌ `webgpu:shader,validation,expression,unary,*`
+- ✅ `webgpu:shader,validation,expression,unary,*`
 
 ## Extension
 - ✅ `webgpu:shader,validation,extension,dual_source_blending:blend_src_usage:*`
@@ -309,7 +309,7 @@ A selector is considered "triaged" if:
 - ✅ `webgpu:shader,validation,statement,switch:*`
 
 ## Types
-- ❌ `webgpu:shader,validation,types,*`
+- ✅ `webgpu:shader,validation,types,*`
 
 ## Uniformity
 - ✅ `webgpu:shader,validation,uniformity,*`

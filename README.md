@@ -61,25 +61,6 @@ Selectors:
 - `webgpu:shader,validation,statement,switch:*`
 - `webgpu:shader,validation,statement,continue:*`
 
-## wgslLanguageFeatures Not Implemented in Deno (PR #8884)
-
-Tests that rely on `gpu.wgslLanguageFeatures` to detect support for WGSL language extensions. Since `deno_webgpu` doesn't expose this API, tests fail because they cannot detect that certain features are implemented.
-
-Selectors:
-- `webgpu:shader,validation,expression,call,builtin,dot4I8Packed:*`
-- `webgpu:shader,validation,expression,call,builtin,dot4U8Packed:*`
-- `webgpu:shader,validation,expression,call,builtin,pack4xI8:*`
-- `webgpu:shader,validation,expression,call,builtin,pack4xI8Clamp:*`
-- `webgpu:shader,validation,expression,call,builtin,pack4xU8:*`
-- `webgpu:shader,validation,expression,call,builtin,pack4xU8Clamp:*`
-- `webgpu:shader,validation,expression,call,builtin,unpack4xI8:*`
-- `webgpu:shader,validation,expression,call,builtin,unpack4xU8:*`
-- `webgpu:shader,validation,extension,pointer_composite_access:*`
-- `webgpu:shader,validation,extension,readonly_and_readwrite_storage_textures:*`
-- `webgpu:shader,validation,parse,requires:*`
-
-Implementation is in [PR #8884](https://github.com/gfx-rs/wgpu/pull/8884).
-
 ## Constant Evaluation Missing Domain/Range/Overflow Validation (#8900)
 
 The implementation of many functions for constant evaluation omits required
@@ -826,23 +807,23 @@ Selector: `webgpu:shader,validation,expression,binary,bitwise_shift:partial_eval
 
 ---
 
-# Builtin Functions dot4I8Packed and dot4U8Packed (0% pass)
+# Builtin Functions dot4I8Packed and dot4U8Packed (91% pass)
 
 Selectors:
 - `webgpu:shader,validation,expression,call,builtin,dot4I8Packed:*`
 - `webgpu:shader,validation,expression,call,builtin,dot4U8Packed:*`
 
-**Overall Status:** 0% pass
+**Overall Status:** 91% pass (20P/0F/2S out of 22 tests each)
 
-## 1. Missing wgslLanguageFeatures implementation
+## Status: RESOLVED - wgslLanguageFeatures Implemented
 
 **What it tests:** Validates the `dot4I8Packed` and `dot4U8Packed` WGSL builtins, which are part of the `packed_4x8_integer_dot_product` language extension.
 
-**Root cause:** Same as "Shader Language Features" section - `deno_webgpu` does not implement `wgslLanguageFeatures`. Tests expect feature to be unsupported (compilation should fail), but Naga has the feature implemented and accepts the builtins.
+**Previous issue:** Tests were failing because `deno_webgpu` did not implement `wgslLanguageFeatures` (PR #8884). This has been **RESOLVED** - the implementation has been merged.
 
-**Related issue:** PR #8884 (wgslLanguageFeatures implementation)
+**Current status:** Tests are now passing. The 2 skipped tests per selector are expected behavior - they verify that the builtin is rejected when the feature is NOT supported, but since wgpu supports the feature, these tests correctly skip.
 
-**See also:** `/Users/Andy/Development/wgpu2/docs/cts-triage/shader_validation_dot4_packed_triage.md` for detailed analysis.
+**Failing tests:** 3 tests per selector fail due to missing constant evaluation support (#4507).
 
 ---
 
@@ -1073,21 +1054,24 @@ TODO: bug
 
 Selector: `webgpu:shader,validation,expression,unary:*`
 
-**Overall Status:** 225P/79F/0S (74% pass rate)
+**Overall Status:** 301P/3F/0S (99% pass rate)
 
 **Root causes:**
 
-1. **Missing wgslLanguageFeatures API (76 failures)** - Tests for `pointer_composite_access` language feature fail because the feature is not advertised through WebGPU API. See Known Issues Reference section.
+1. **Missing wgslLanguageFeatures API (RESOLVED)** - The 76 failures related to `pointer_composite_access` language feature have been resolved with the implementation of wgslLanguageFeatures (PR #8884).
 
 2. **Atomic Direct Reference (2 failures)** - Naga allows direct atomic references in negation/complement operations instead of requiring atomic builtins. See Known Issues Reference (#5474).
 
-3. **Matrix Negation Accepted (1 failure)** - Naga accepts unary negation on matrix types (e.g., `-m`) but WGSL spec only allows negation on scalar and vector types. TODO: bug
+3. **Matrix Negation Accepted (1 failure)** - Naga accepts unary negation on matrix types (e.g., `-m`) but WGSL spec only allows negation on scalar and vector types.
 
-**Failing test:** `arithmetic_negation:expr="unary_minus";type="matrix"`
+**Failing tests:**
+- `arithmetic_negation:invalid_types:type="mat2x2f"` - Matrix negation not rejected
+- `arithmetic_negation:invalid_types:type="atomic"` - Atomic negation not rejected (issue #5474)
+- `bitwise_complement:invalid_types:type="atomic"` - Atomic bitwise complement not rejected (issue #5474)
 
 **Fix needed:** Add validation in Naga's WGSL expression validator to reject unary negation operator on matrix operands.
 
-See: `docs/cts-triage/expression_unary_2.md`
+See: `docs/cts-triage/expression_unary.md`
 
 ---
 
@@ -1754,23 +1738,29 @@ See: `docs/cts-triage/shader_io_size.md`
 
 Selector: `webgpu:shader,validation,types,*`
 
-**Overall Status:** 86% pass rate (1526 total tests covering 10 type areas: alias, array, atomics, enumerant, matrix, pointer, ref, struct, textures, vector)
+**Overall Status:** 95% pass rate (1450P/47F/29S out of 1526 tests covering 10 type areas: alias, array, atomics, enumerant, matrix, pointer, ref, struct, textures, vector)
 
-## Failure Patterns
+## Failure Patterns (47 failures)
 
-### 1. Trailing commas in template argument lists (~100 failures)
+### 1. texture_external Not Supported (2 failures)
 
-**Root cause:** Naga doesn't accept trailing commas in template argument lists (e.g., `vec3<u32,>`, `mat2x2<f32,>`, `array<u32,4,>`). WebGPU spec's `template_arg_comma_list` production explicitly allows optional trailing comma.
+**Root cause:** The `texture_external` type is not implemented in wgpu/Naga. Affects `alias` and `textures` test suites.
 
-### 2. f16 usage without enable directive (9 failures)
+### 2. Atomic Validation Gaps (8 failures)
 
-**Root cause:** Naga doesn't fully implement `enable` directive checking. Using f16 without `enable f16;` should produce validation error. Related issues: #5476, #4384.
+**Root cause:** Multiple validation issues with atomic types:
+- Direct references to atomics in expressions (issue #5474) - 3 failures
+- Atomics accepted in read-only storage (should require read_write) - 1 failure
+- Atomics accepted in pointer types with invalid address spaces (private, function, uniform) - 3 failures
+- Pointer with write-only access mode to storage (invalid) - 2 failures
 
-**Expected after fixes:** 94.6% pass rate (~1445/1526 tests passing)
+### 3. 16-bit Normalized Storage Texture Formats (36 failures)
 
-See: `docs/cts-triage/shader_validation_types.md` for details.
+**Root cause:** Naga rejects storage textures with 16-bit normalized formats (r16unorm, r16snorm, rg16unorm, rg16snorm, rgba16unorm, rgba16snorm) even though these are valid with the `texture-formats-tier1` feature. This is an architectural issue where shader validation happens before device feature checking.
 
-**Related issues:** https://github.com/gfx-rs/wgpu/issues/8899, TODO
+**Impact:** Highest number of failures in this category.
+
+See: `docs/cts-triage/shader_validation_types.md` for detailed analysis of all 6 failure patterns.
 
 ---
 

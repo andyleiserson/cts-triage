@@ -4,76 +4,25 @@ CTS selector: `webgpu:shader,validation,expression,unary,*`
 
 Model: Claude Sonnet 4.5
 
-**Overall Status:** 225P/79F/0S (74%/26%/0%)
+**Overall Status:** 301P/3F/0S (99%/1%/0%)
 
 ## Passing Sub-suites ✅
 
 | Subcategory | Pass Rate | Description |
 |-------------|-----------|-------------|
+| `address_of_and_indirection` | 172/172 (100%) | Tests address-of (&) and dereference (*) operators |
 | `logical_negation` | 48/48 (100%) | Tests logical NOT operator (!) validation |
 
 ## Remaining Issues ⚠️
 
 | Subcategory | Pass Rate | Description |
 |-------------|-----------|-------------|
-| `address_of_and_indirection` | 96/172 (55.81%) | Tests address-of (&) and dereference (*) operators |
 | `arithmetic_negation` | 40/42 (95.24%) | Tests arithmetic negation (-) operator |
 | `bitwise_complement` | 41/42 (97.62%) | Tests bitwise complement (~) operator |
 
 ## Issue Detail
 
-### 1. Pointer Composite Access Without Language Feature
-
-**Test selector:** `webgpu:shader,validation,expression,unary,address_of_and_indirection:composite:*`
-
-**Pass rate:** 96/172 tests pass (55.81%)
-
-**What it tests:** Validates that pointer composite access syntax (e.g., `p[0].member` where `p` is a pointer) is only accepted when the `pointer_composite_access` language feature is supported. Also validates that dereference-then-access syntax (e.g., `(*p)[0].member`) works without the feature.
-
-**Example failure:**
-```
-webgpu:shader,validation,expression,unary,address_of_and_indirection:composite:addressSpace="function";compositeType="array";storageType="bool"
-```
-
-**Error:**
-```
-EXPECTATION FAILED: Expected validation error
-VALIDATION FAILED: Missing expected compilationInfo 'error' message.
-```
-
-**Root cause:**
-
-The test logic:
-1. CTS test queries `gpu.wgslLanguageFeatures.has('pointer_composite_access')`
-2. If the feature IS advertised, the test expects shaders using `p[0]` syntax to compile successfully
-3. If the feature is NOT advertised, the test expects shaders using `p[0]` syntax to fail
-
-The problem:
-- `deno_webgpu` does not expose the `wgslLanguageFeatures` API on the `GPU` object (see #8884)
-- CTS sees the feature as NOT supported
-- CTS expects shader compilation to FAIL for `derefType="pointer"` and `derefType="address_of_identifier"` (which have `requires_pointer_composite_access: true`)
-- But Naga implements `pointer_composite_access` unconditionally
-- Shader compilation SUCCEEDS
-- Test fails with "Expected validation error"
-
-**Affected tests:** 76 failures (all have `derefType="pointer"` subcases with `accessMode="read_write"`)
-
-**Fix needed:**
-
-This is a known issue tracked in #8884. The fix requires:
-1. Exposing `wgslLanguageFeatures` on the `GPU` object in `deno_webgpu`
-2. Reporting `pointer_composite_access` as a supported language feature
-
-Once fixed, all 76 failing tests should pass because:
-- CTS will see `pointer_composite_access` IS supported
-- CTS will expect shaders to compile successfully
-- Shaders DO compile successfully (as they already do)
-
-See also: `/Users/Andy/Development/wgpu2/docs/cts-triage/shader_pointer_composite_access_triage.md` for detailed analysis of the related `webgpu:shader,validation,extension,pointer_composite_access:*` selector.
-
----
-
-### 2. Arithmetic Negation Accepted for Invalid Types
+### 1. Arithmetic Negation Accepted for Invalid Types
 
 **Test selector:** `webgpu:shader,validation,expression,unary,arithmetic_negation:invalid_types:*`
 
@@ -83,7 +32,7 @@ See also: `/Users/Andy/Development/wgpu2/docs/cts-triage/shader_pointer_composit
 
 **Failures:**
 
-#### 2a. Matrix Negation
+#### 1a. Matrix Negation
 
 **Example failure:**
 ```
@@ -93,6 +42,7 @@ webgpu:shader,validation,expression,unary,arithmetic_negation:invalid_types:type
 **Error:**
 ```
 EXPECTATION FAILED: Expected validation error
+VALIDATION FAILED: Missing expected compilationInfo 'error' message.
 ```
 
 **Test code:**
@@ -104,12 +54,14 @@ fn main() {
 ```
 
 **Root cause:**
-Naga accepts arithmetic negation on matrix types (`-m`), but the WebGPU spec only allows negation on scalar and vector signed numeric types. Matrices are not in the list of supported types for the negation operator.
+Naga accepts arithmetic negation on matrix types (`-m`), but the WebGPU spec only allows negation on scalar and vector signed numeric types. According to the CTS test at line 108 in `arithmetic_negation.spec.ts`, the test expects `control=false` (i.e., the direct expression) to fail compilation, but Naga accepts it.
+
+The WGSL spec defines the negation operator for scalar and vector types only. Matrix negation is not a valid operation.
 
 **Fix needed:**
-Add validation in Naga's WGSL frontend to reject unary negation when the operand is a matrix type.
+Add validation in Naga's WGSL frontend to reject unary negation when the operand is a matrix type. This would require checking the type in Naga's expression validation and emitting an error for matrix types.
 
-#### 2b. Atomic Negation
+#### 1b. Atomic Negation
 
 **Example failure:**
 ```
@@ -119,6 +71,7 @@ webgpu:shader,validation,expression,unary,arithmetic_negation:invalid_types:type
 **Error:**
 ```
 EXPECTATION FAILED: Expected validation error
+VALIDATION FAILED: Missing expected compilationInfo 'error' message.
 ```
 
 **Test code:**
@@ -130,14 +83,16 @@ fn main() {
 ```
 
 **Root cause:**
-This is a known issue tracked in #5474. Naga allows referencing atomics directly in expressions instead of requiring `atomicLoad`, `atomicStore`, etc. The negation operator should reject direct references to atomic types.
+This is a known issue tracked in https://github.com/gfx-rs/wgpu/issues/5474. Naga allows referencing atomics directly in expressions instead of requiring `atomicLoad`, `atomicStore`, etc. The negation operator should reject direct references to atomic types.
+
+According to the CTS test source (line 58-59), the control case uses `atomicLoad(&a)` which should be valid, but the test case directly references `a` which should be invalid.
 
 **Fix needed:**
-Part of the broader #5474 fix to require atomic operations go through atomic builtin functions.
+Part of the broader #5474 fix to require atomic operations go through atomic builtin functions. Do not attempt to fix - refer user to https://github.com/gfx-rs/wgpu/issues/5474.
 
 ---
 
-### 3. Bitwise Complement Accepted for Atomic Types
+### 2. Bitwise Complement Accepted for Atomic Types
 
 **Test selector:** `webgpu:shader,validation,expression,unary,bitwise_complement:invalid_types:*`
 
@@ -153,6 +108,7 @@ webgpu:shader,validation,expression,unary,bitwise_complement:invalid_types:type=
 **Error:**
 ```
 EXPECTATION FAILED: Expected validation error
+VALIDATION FAILED: Missing expected compilationInfo 'error' message.
 ```
 
 **Test code:**
@@ -164,22 +120,34 @@ fn main() {
 ```
 
 **Root cause:**
-This is a known issue tracked in #5474. Naga allows referencing atomics directly in expressions instead of requiring atomic builtin functions. The bitwise complement operator should reject direct references to atomic types.
+This is a known issue tracked in https://github.com/gfx-rs/wgpu/issues/5474. Naga allows referencing atomics directly in expressions instead of requiring atomic builtin functions. The bitwise complement operator should reject direct references to atomic types.
+
+According to the CTS test source (line 58-59 in `bitwise_complement.spec.ts`), the control case uses `atomicLoad(&a)` which should be valid, but the test case directly references `a` which should be invalid.
 
 **Fix needed:**
-Part of the broader #5474 fix to require atomic operations go through atomic builtin functions.
+Part of the broader #5474 fix to require atomic operations go through atomic builtin functions. Do not attempt to fix - refer user to https://github.com/gfx-rs/wgpu/issues/5474.
 
 ---
 
 ## Summary
 
-The unary expression validation tests have a 74% pass rate with 79 failures broken down as:
-- **76 failures (96% of failures):** Missing `wgslLanguageFeatures` API causes pointer composite access tests to fail (#8884)
-- **2 failures:** Invalid type validation gaps (1 matrix negation, 1 atomic negation)
-- **1 failure:** Atomic type validation gap (bitwise complement)
+The unary expression validation tests now have a 99% pass rate (improved from 74% in previous triage) with only 3 failures:
+- **2 failures:** Atomic type validation gaps (1 arithmetic negation, 1 bitwise complement) - part of known issue #5474
+- **1 failure:** Matrix negation validation gap - straightforward fix needed in Naga
 
-The atomic-related failures (3 total) are part of the known issue #5474.
+### Progress Since Previous Triage
 
-The matrix negation failure is a straightforward validation gap in Naga.
+The previous triage (225P/79F) showed 76 failures related to missing `wgslLanguageFeatures` API (#8884). These have all been resolved, indicating that:
+- The `wgslLanguageFeatures` API has been implemented
+- The `pointer_composite_access` feature is now properly advertised
+- All 172 `address_of_and_indirection` tests now pass
 
-The largest impact is the missing `wgslLanguageFeatures` API (#8884), which accounts for 96% of failures.
+The remaining 3 failures are:
+1. **Matrix negation** - New validation gap that could be fixed in Naga
+2. **Atomic negation and complement** - Part of the known #5474 issue
+
+### Recommended Actions
+
+1. **Matrix negation validation (Priority: Medium)** - Add validation in Naga to reject unary negation on matrix types. This is a straightforward spec compliance fix.
+
+2. **Atomic expression validation (Priority: Low)** - Already tracked under #5474. No immediate action needed as this is part of a broader fix.
