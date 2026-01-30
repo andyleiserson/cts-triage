@@ -1202,24 +1202,6 @@ See: `docs/cts-triage/builtin_insertBits.md`
 
 ---
 
-## textureLoad()
-
-Selector: `webgpu:shader,validation,expression,call,builtin,textureLoad:*`
-
-**Overall Status:** 988P/5F/0S (99.50% pass rate)
-
-**Root cause:** All 5 failures are related to `texture_external` support. Tests using `texture_external` fail because it requires the `TEXTURE_EXTERNAL` capability which is not being properly enabled. The error message indicates "Capability TEXTURE_EXTERNAL is required".
-
-**Failing tests:** All failures involve `texture_external` texture type:
-- `return_type,non_storage` with `texture_external` (1 failure)
-- `texture_type,non_storage` with `texture_external` (1 failure)
-- `texture_type,storage` with `texture_external` (1 failure)
-- `coords_argument,non_storage` with `texture_external` (3 failures with different coord types)
-
-**Fix needed:** The tests need to either enable the appropriate capability directive for `texture_external` in WGSL or skip tests when the device does not support the `texture_external` capability. This is related to the broader issue that `EXTERNAL_TEXTURE` is classified as `FeaturesWGPU` (native-only) rather than `FeaturesWebGPU`.
-
----
-
 ## textureSample()
 
 Selectors:
@@ -1232,20 +1214,6 @@ Selectors:
 1. Offset validation (10+ failures) - Naga is not properly validating that offset values are within the required range [-8, +7]. This affects `textureSampleBias`, `textureSampleCompare`, `textureSampleCompareLevel`, and `textureSampleLevel`.
 2. Texture type mismatches with offsets (2 failures) - Cube textures used with 3D parameters and offset=true
 3. must_use validation (1 failure) - Not enforcing that builtin function results must be used
-
-## textureSampleBaseClampToEdge()
-
-Selector: `webgpu:shader,validation,expression,call,builtin,textureSampleBaseClampToEdge:*`
-
-**Overall Status:** 137P/5F/0S (96.48% pass rate)
-
-**Root cause:** All failures are due to `texture_external` not being exposed in deno_webgpu. The `EXTERNAL_TEXTURE` feature is classified as `FeaturesWGPU` (native-only) rather than `FeaturesWebGPU`, so it's filtered out when exposing features to JavaScript. Without the feature enabled, Naga rejects shaders containing `texture_external` with "Capability TEXTURE_EXTERNAL is required".
-
-**Failing tests:** All 5 failures involve `texture_external` texture type. Tests with `texture_2d<f32>` pass (137/137 = 100%).
-
-**Fix needed:** Move `EXTERNAL_TEXTURE` from `FeaturesWGPU` to `FeaturesWebGPU` or add special handling in deno_webgpu to expose this feature.
-
-See: `docs/cts-triage/builtin_textureSampleBaseClampToEdge.md`
 
 ---
 
@@ -1551,14 +1519,6 @@ Selector: `webgpu:shader,validation,shader_io,group:*`
 See: `docs/cts-triage/shader_io_group.md`
 
 **Related issue:** https://github.com/gfx-rs/wgpu/issues/8892
-
----
-
-# Shader IO Group and Bindings
-
-Selector: `webgpu:shader,validation,shader_io,group_and_binding:*`
-
-External texture related. All pass with external texture support enabled in Deno.
 
 ---
 
