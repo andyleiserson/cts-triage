@@ -179,10 +179,9 @@ Selector: `webgpu:api,validation,capability_checks,limits,*`
 **Overall Status:** 5100P/2453F/312S (65%/31%/4%)
 
 **Root causes:**
-1. **wgslLanguageFeatures Not Implemented** (~789 failures) - deno_webgpu missing gpu.wgslLanguageFeatures API (PR #8884)
-2. **Workgroup Storage Size Validation Missing** (~222 failures) - No validation of maxComputeWorkgroupStorageSize at pipeline creation
-3. **InterStage Shader Variables Counting** (~256 failures) - Incorrect built-in variable limit counting (CTS issue #4538)
-4. **Bind Group Index Validation Timing** (~25 failures, dx12-specific) - Validation at wrong pipeline point
+1. **Workgroup Storage Size Validation Missing** (~222 failures) - No validation of maxComputeWorkgroupStorageSize at pipeline creation
+2. **InterStage Shader Variables Counting** (~256 failures) - Incorrect built-in variable limit counting (CTS issue #4538)
+3. **Bind Group Index Validation Timing** (~25 failures, dx12-specific) - Validation at wrong pipeline point
 
 See: `docs/cts-triage/capability_checks_limits.md` for detailed analysis.
 
@@ -815,15 +814,9 @@ Selectors:
 
 **Overall Status:** 91% pass (20P/0F/2S out of 22 tests each)
 
-## Status: RESOLVED - wgslLanguageFeatures Implemented
-
-**What it tests:** Validates the `dot4I8Packed` and `dot4U8Packed` WGSL builtins, which are part of the `packed_4x8_integer_dot_product` language extension.
-
-**Previous issue:** Tests were failing because `deno_webgpu` did not implement `wgslLanguageFeatures` (PR #8884). This has been **RESOLVED** - the implementation has been merged.
-
-**Current status:** Tests are now passing. The 2 skipped tests per selector are expected behavior - they verify that the builtin is rejected when the feature is NOT supported, but since wgpu supports the feature, these tests correctly skip.
-
-**Failing tests:** 3 tests per selector fail due to missing constant evaluation support (#4507).
+**Failing tests:** 3 tests per selector fail due to missing constant evaluation
+support (#4507). (Editor's note: Either this statement, or the summary line
+above, must be incorrect.)
 
 ---
 
@@ -856,38 +849,6 @@ See [#8868](https://github.com/gfx-rs/wgpu/issues/8868).
 
 ---
 
-# Shader Language Features (pointer_composite_access, requires)
-
-Selectors:
-- `webgpu:shader,validation,extension,pointer_composite_access:pointer:*` (50% pass)
-- `webgpu:shader,validation,parse,requires:*` (14% pass: 5P/3F/15S)
-
-**Root Cause:** The deno_webgpu backend does not expose the `wgslLanguageFeatures` API on the `GPU` object.
-
-## 1. Missing wgslLanguageFeatures API in deno_webgpu
-
-**What it tests:** Validates that when language features are supported, shaders can use the corresponding syntax.
-
-**For pointer_composite_access:** ~50% pass (some tests skip, some fail)
-
-**For parse,requires:**
-- 3 failures: Tests for `wgsl_matches_api:feature=` with implemented features (`readonly_and_readwrite_storage_textures`, `packed_4x8_integer_dot_product`, `pointer_composite_access`) - CTS expects compilation to fail but Naga accepts the `requires` directive
-- 15 skipped: Tests in `requires:requires:*` suite skip because `skipIfLanguageFeatureNotSupported()` sees features as unsupported
-- 5 passing: Tests that don't require feature detection
-
-**Error:**
-```
-EXPECTATION FAILED: Expected validation error
-```
-
-**Root cause:** When CTS checks `gpu.wgslLanguageFeatures.has('feature_name')`, it gets `false` (property undefined). Tests expect compilation to fail, but Naga correctly supports these features.
-
-**Fix needed:** Implement `wgslLanguageFeatures` property in `/Users/Andy/Development/wgpu2/deno_webgpu/lib.rs` returning a Set-like object with the three implemented features.
-
-**Related issue:** https://github.com/gfx-rs/wgpu/pull/8884
-
----
-
 # Shader Context Dependent Resolution
 
 Selector: `webgpu:shader,validation,decl,context_dependent_resolution:*`
@@ -897,8 +858,6 @@ Selector: `webgpu:shader,validation,decl,context_dependent_resolution:*`
 **Root cause:** Naga treats `f16` as a reserved keyword unconditionally. When `enable f16;` is used, the name `f16` should be available as a regular identifier (context-dependent resolution), but Naga's lexer rejects it. The `word_as_ident` function in `naga/src/front/wgsl/parse/lexer.rs:495-500` checks reserved keywords without considering enabled extensions.
 
 **Failing test:** `enable_names:case="f16"` - Tests that `f16` can be used as identifier after `enable f16;`
-
-**Skipped tests:** 4 tests in `language_names` subcategory skip due to missing wgslLanguageFeatures API (#8884).
 
 **Fix needed:** Modify lexer to accept enable extension names as identifiers when those extensions are enabled.
 
@@ -1058,11 +1017,9 @@ Selector: `webgpu:shader,validation,expression,unary:*`
 
 **Root causes:**
 
-1. **Missing wgslLanguageFeatures API (RESOLVED)** - The 76 failures related to `pointer_composite_access` language feature have been resolved with the implementation of wgslLanguageFeatures (PR #8884).
+1. **Atomic Direct Reference (2 failures)** - Naga allows direct atomic references in negation/complement operations instead of requiring atomic builtins. See Known Issues Reference (#5474).
 
-2. **Atomic Direct Reference (2 failures)** - Naga allows direct atomic references in negation/complement operations instead of requiring atomic builtins. See Known Issues Reference (#5474).
-
-3. **Matrix Negation Accepted (1 failure)** - Naga accepts unary negation on matrix types (e.g., `-m`) but WGSL spec only allows negation on scalar and vector types.
+2. **Matrix Negation Accepted (1 failure)** - Naga accepts unary negation on matrix types (e.g., `-m`) but WGSL spec only allows negation on scalar and vector types.
 
 **Failing tests:**
 - `arithmetic_negation:invalid_types:type="mat2x2f"` - Matrix negation not rejected
@@ -1430,14 +1387,6 @@ Selectors:
 **Fix needed:** Remove the group index validation loop (lines 2265-2276) from `create_shader_module`. Move validation to pipeline creation functions where shader requirements are checked against available resources.
 
 See: `docs/cts-triage/shader_parse_group.md` for detailed analysis.
-
----
-
-# Shader Parse `requires` directive
-
-Selector: `webgpu:shader,validation,parse,requires:*`
-
-Missing `wgslLanguageFeatures` support. (#8884)
 
 ---
 
