@@ -23,7 +23,7 @@ not say "CTS selectors" or "Test selectors". Only say "Selector: " or
 
 # Known Issues Reference
 
-## Direct Access to Atomics (#5474)
+## Direct Access to Atomics ([#5474](https://github.com/gfx-rs/wgpu/issues/5474))
 
 Many shader validation tests fail because Naga allows referencing atomics directly in expressions instead of requiring `atomicLoad`, `atomicStore`, etc.
 
@@ -43,7 +43,7 @@ Selectors:
 - `webgpu:shader,validation,expression,call,builtin,select:*`
 - `webgpu:shader,validation,statement,increment_decrement:*`
 
-## Destroyed Resource Validation Error Timing (#7881)
+## Destroyed Resource Validation Error Timing ([#7881](https://github.com/gfx-rs/wgpu/issues/7881))
 
 Tests that check for validation errors when a destroyed resource is used. `wgpu` often reports these errors later than WebGPU requires, causing the tests to fail.
 
@@ -51,7 +51,7 @@ Selectors:
 - `webgpu:api,validation,createBindGroup:texture,resource_state:*`
 - `webgpu:api,validation,encoding,cmds,setBindGroup:*` (state="destroyed" subcases)
 
-## Behavior Analysis Not Implemented (#7650)
+## Behavior Analysis Not Implemented ([#7650](https://github.com/gfx-rs/wgpu/issues/7650))
 
 Naga does not implement the behavior analysis algorithm required by WebGPU.
 
@@ -61,7 +61,7 @@ Selectors:
 - `webgpu:shader,validation,statement,switch:*`
 - `webgpu:shader,validation,statement,continue:*`
 
-## Constant Evaluation Missing Domain/Range/Overflow Validation (#8900)
+## Constant Evaluation Missing Domain/Range/Overflow Validation ([#8900](https://github.com/gfx-rs/wgpu/issues/8900))
 
 The implementation of many functions for constant evaluation omits required
 checks of the domain/range of the function (e.g. detecting illegal input
@@ -84,7 +84,7 @@ Selectors:
 - `webgpu:shader,validation,expression,call,builtin,sinh:*`
 - `webgpu:shader,validation,expression,call,builtin,sqrt:*`
 
-## Functions Missing Constant Evaluation Support (#4507)
+## Functions Missing Constant Evaluation Support ([#4507](https://github.com/gfx-rs/wgpu/issues/4507))
 
 Tests that fail because Naga has not implemented support for a particular
 function(s) in constant evaluation.
