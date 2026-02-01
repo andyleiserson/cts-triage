@@ -172,6 +172,8 @@ wgpu-core returns `MissingFeatures` errors as `ErrorType::Validation`, but the W
 
 See: `docs/cts-triage/capability_checks_features.md` for detailed analysis.
 
+**Related issue:** <https://bugzilla.mozilla.org/show_bug.cgi?id=1917253>
+
 ## Limits (65% pass)
 
 Selector: `webgpu:api,validation,capability_checks,limits,*`
@@ -217,14 +219,6 @@ Selector: `webgpu:api,validation,compute_pipeline:overrides,workgroup_size,limit
 
 Missing re-validation of workgroup size (dimensions, not storage) limits after pipeline constants applied (2 failures).
 
-## Resource Compatibility (84% pass)
-
-Selector: `webgpu:api,validation,compute_pipeline:resource_compatibility:*`
-
-Storage texture read-write bindings not compatible with write-only shaders (12 failures).
-
-**Related issue:** https://github.com/gfx-rs/wgpu/issues/8905
-
 ---
 
 # Compute Pipeline Overrides (Identifier)
@@ -259,7 +253,7 @@ Destroyed buffer validation timing - known issue #7881 (1 failure).
 
 ---
 
-# CreateBindGroupLayout Validation (overall good pass rates)
+# CreateBindGroupLayout Validation
 
 ## Max Resources Per Stage (0% pass)
 
@@ -374,24 +368,6 @@ Unexpected validation error occurred: Invalid group index 1
 **Fix needed:** Modify `render_pipeline_get_bind_group_layout` and `compute_pipeline_get_bind_group_layout` to:
 1. Check if `index >= device.limits.max_bind_groups` and return error if so
 2. For indices within bounds but beyond defined layouts, return an empty bind group layout
-
----
-
-# Layout Shader Compat
-
-Selector: `webgpu:api,validation,layout_shader_compat:pipeline_layout_shader_exact_match:*`
-
-**Overall Status:** 109P/1F/0S (99.09% pass)
-
-### Issue: Storage Texture Access Mode Validation Too Strict
-
-**Failing test:** bindingInPipelineLayout="readwriteStorageTex"; bindingInShader="writeonlyStorageTex"
-
-**Root cause:** Validation requires exact match between layout and shader storage texture access modes. Spec allows shader to use subset of layout's access (e.g., write-only shader with read-write layout).
-
-**Fix needed:** Modify `check_binding_use` to allow shader's requested access to be subset of layout's provided access.
-
-See: `docs/cts-triage/layout_shader_compat_exact_match.md`
 
 ---
 
@@ -705,26 +681,6 @@ Color target without shader output requires writeMask=0 (66 failures).
 Selector: `webgpu:api,validation,render_pipeline,fragment_state:pipeline_output_targets,blend:*`
 
 Blend factors reading source alpha require vec4 output (100 failures).
-
----
-
-# Render Pipeline Resource Compatibility (90% pass)
-
-Selector: `webgpu:api,validation,render_pipeline:resource_compatibility:*`
-
-**Overall Status:** 111P/12F/0S (90.24% pass rate)
-
-**Root cause:** Storage texture access mode validation is too strict. When a pipeline layout binding has `read-write` access, shaders using `write-only` access should be compatible, but wgpu requires exact match.
-
-**Failing tests:** All 12 failures are fragment stage tests with `read-write` storage textures (all dimensions and formats: 1d, 2d, 2d-array, 3d × r32float, r32sint, r32uint).
-
-**Fix needed:** Modify validation at `wgpu-core/src/validation.rs:703` to allow bind group layout access to be a superset of shader access requirements (i.e., `read-write` layout matches `write-only` shader).
-
-**Note:** Same issue as compute pipeline resource compatibility (84% pass rate).
-
-See: `docs/cts-triage/render_pipeline_resource_compatibility.md`
-
-**Related issue:** https://github.com/gfx-rs/wgpu/issues/8905
 
 ---
 
