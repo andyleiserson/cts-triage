@@ -164,11 +164,11 @@ Selector: `webgpu:api,validation,capability_checks,features,*`
 
 wgpu-core returns `MissingFeatures` errors as `ErrorType::Validation`, but the WebGPU specification requires that using optional features without enabling them should throw **TypeError** exceptions synchronously, not validation errors that get pushed to error scopes.
 
-**Current behavior**: wgpu-core correctly detects when a feature is missing (via `Device::require_features()` and `TextureFormat::required_features()`), but the error is classified as a validation error. In deno_webgpu, these validation errors are pushed to the error handler rather than being thrown as TypeError exceptions.
+**Current behavior**: wgpu-core correctly detects when a feature is missing (via `Device::require_features()` and `TextureFormat::required_features()`), but the error is classified as a validation error. In deno\_webgpu, these validation errors are pushed to the error handler rather than being thrown as TypeError exceptions.
 
 **Expected behavior**: Per WebGPU spec, these should throw TypeError synchronously when the API call is made, not generate validation errors.
 
-**Fix needed:** Modify deno_webgpu to intercept `MissingFeatures` errors and throw TypeError. Implement TEXTURE_COMPONENT_SWIZZLE feature in wgpu-types/features.rs.
+**Fix needed:** Modify deno\_webgpu to intercept `MissingFeatures` errors and throw TypeError. Implement TEXTURE_COMPONENT_SWIZZLE feature in wgpu-types/features.rs.
 
 See: `docs/cts-triage/capability_checks_features.md` for detailed analysis.
 
@@ -394,6 +394,8 @@ Tests expect `writeBuffer` and `writeTexture` to return `undefined`, but the imp
 ## 2. Destroyed query set validation missing
 
 Tests with destroyed query sets are not being properly validated.
+
+_[Ed.: but this is a queue test? I'm dubious.]_
 
 ---
 
@@ -712,7 +714,7 @@ Selector: `webgpu:api,validation,render_pipeline:vertex_state:*`
 
 **Fix needed:** Change line 4009 to check `vertex.buffers.len()` instead of `vertex_buffers.len()`.
 
-**Secondary issue:** Internal errors have empty messages in deno_webgpu (`error.rs:186`), causing "undefined" error messages in tests.
+**Secondary issue:** Internal errors have empty messages in deno\_webgpu (`error.rs:186`), causing "undefined" error messages in tests.
 
 See: `docs/cts-triage/render_pipeline_vertex_state.md`
 
@@ -776,8 +778,8 @@ Selectors:
 **Overall Status:** 91% pass (20P/0F/2S out of 22 tests each)
 
 **Failing tests:** 3 tests per selector fail due to missing constant evaluation
-support (#4507). (Editor's note: Either this statement, or the summary line
-above, must be incorrect.)
+support (#4507). _[Ed.: Either this statement, or the summary line
+above, must be incorrect.]_
 
 ---
 
@@ -1616,15 +1618,18 @@ Selector: `webgpu:shader,validation,types,*`
 
 **Root cause:** The `texture_external` type is not implemented in wgpu/Naga. Affects `alias` and `textures` test suites.
 
-### 2. Atomic Validation Gaps (8 failures)
+Passes with https://github.com/gfx-rs/wgpu/pull/8901 and `--enable-external-texture`.
+
+### 2. Atomic Validation Gaps (7 failures)
 
 **Root cause:** Multiple validation issues with atomic types:
 - Direct references to atomics in expressions (issue #5474) - 3 failures
 - Atomics accepted in read-only storage (should require read_write) - 1 failure
 - Atomics accepted in pointer types with invalid address spaces (private, function, uniform) - 3 failures
-- Pointer with write-only access mode to storage (invalid) - 2 failures
 
-### 3. 16-bit Normalized Storage Texture Formats (36 failures)
+### 3. Pointer with write-only access mode to storage should be invalid (2 failures)
+
+### 4. 16-bit Normalized Storage Texture Formats (36 failures)
 
 **Root cause:** Naga rejects storage textures with 16-bit normalized formats (r16unorm, r16snorm, rg16unorm, rg16snorm, rgba16unorm, rgba16snorm) even though these are valid with the `texture-formats-tier1` feature. This is an architectural issue where shader validation happens before device feature checking.
 
