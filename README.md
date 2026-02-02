@@ -181,9 +181,12 @@ Selector: `webgpu:api,validation,capability_checks,limits,*`
 **Overall Status:** 5100P/2453F/312S (65%/31%/4%)
 
 **Root causes:**
-1. **Workgroup Storage Size Validation Missing** (~222 failures) - No validation of maxComputeWorkgroupStorageSize at pipeline creation
-2. **InterStage Shader Variables Counting** (~256 failures) - Incorrect built-in variable limit counting (CTS issue #4538)
-3. **Bind Group Index Validation Timing** (~25 failures, dx12-specific) - Validation at wrong pipeline point
+1. **Missing Limit: maxBindGroupsPlusVertexBuffers** (~40 failures) - Limit not exposed by wgpu
+2. **Missing Limits: Per-Stage Resource Limits** (~487 failures) - Four per-stage limits not implemented: maxStorageBuffersInFragmentStage, maxStorageBuffersInVertexStage, maxStorageTexturesInFragmentStage, maxStorageTexturesInVertexStage
+3. **Device Creation Validation Gap: Over-Limit Requests** (~700+ failures) - No validation when requested limits exceed adapter maximum
+4. **Early Validation: maxColorAttachmentBytesPerSample** (~54 failures) - wgpu validates multisampling format support at pipeline creation, but spec only requires it at texture creation
+5. **Workgroup Storage Size Validation Gap** (~222 failures) - No validation of maxComputeWorkgroupStorageSize at pipeline creation
+6. **Incorrect Limit Value: maxInterStageShaderVariables** (~208 failures) - wgpu reports 15 instead of spec-required 16
 
 See: `docs/cts-triage/capability_checks_limits.md` for detailed analysis.
 

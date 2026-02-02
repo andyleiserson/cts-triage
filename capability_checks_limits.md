@@ -8,6 +8,8 @@ Model: Claude Sonnet 4.5
 
 Note: Testing all limits at once causes a panic in the Metal backend (`wgpu-hal/src/metal/device.rs:412:18`) when attempting to create very large buffers. This appears to be an unwrap on None when Metal fails to allocate the buffer. Individual limit categories were tested separately to work around this crash.
 
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/8947 (meta-issue for limit issues, also see individual issues linked there or below)
+
 ## Summary by Limit Category
 
 ### Passing Limits (100% pass rate)
@@ -82,6 +84,8 @@ The limit is defined in the WebGPU sys bindings but not exposed through the wgpu
 **Fix needed:**
 Expose the `maxBindGroupsPlusVertexBuffers` limit in wgpu's limits structure and populate it from the underlying backend.
 
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/8832
+
 ### 2. Missing Limits: Per-Stage Resource Limits
 **Test selectors:**
 - `webgpu:api,validation,capability_checks,limits,maxStorageBuffersInFragmentStage:*`
@@ -110,6 +114,8 @@ Add these four per-stage limits to wgpu's limits structure:
 - `maxStorageBuffersInVertexStage`
 - `maxStorageTexturesInFragmentStage`
 - `maxStorageTexturesInVertexStage`
+
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/8748
 
 ### 3. Device Creation Validation Gap: Over-Limit Requests
 **Test selector:** `webgpu:api,validation,capability_checks,limits,maxBindGroups:createPipeline,at_over:*`
@@ -143,7 +149,9 @@ This pattern affects multiple limit categories including:
 - `maxStorageTexturesPerShaderStage` (219 failures)
 - And others
 
-### 4. Incorrect Format Validation: maxColorAttachmentBytesPerSample
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/8983
+
+### 4. Early Validation: maxColorAttachmentBytesPerSample Multisampling Format Check
 **Test selector:** `webgpu:api,validation,capability_checks,limits,maxColorAttachmentBytesPerSample:createRenderPipeline,at_over:*`
 
 **What it tests:** Validates that the total bytes per sample across all color attachments does not exceed the limit when multisampling is enabled.
@@ -159,12 +167,28 @@ EXPECTATION FAILED: Color state [1] is invalid: Sample count 4 is not supported 
 ```
 
 **Root cause:**
-The error message is contradictory - it says sample count 4 is not supported, but then states that the device supports [1, 2, 4]. This indicates a bug in wgpu's validation logic where it's incorrectly rejecting a valid configuration.
+wgpu is validating multisampling format support at **render pipeline creation time**, but the WebGPU spec only requires this validation at **texture creation time**.
 
-The test is trying to create a render pipeline with multiple color attachments (including Rgba32Uint) with sample count 4, which should be valid according to both the spec and the device's capabilities.
+The spec's `validating GPUMultisampleState` algorithm ([GPUMultisampleState](https://gpuweb.github.io/gpuweb/#GPUMultisampleState)) only checks:
+- `count` must be 1 or 4
+- If `alphaToCoverageEnabled` is true, `count` must be > 1
+
+It does **not** check whether color target formats support multisampling.
+
+The spec's `validating GPUFragmentState` algorithm also does **not** validate multisampling format support for color targets.
+
+Multisampling format support is only validated at texture creation time ([createTexture](https://gpuweb.github.io/gpuweb/#dom-gpudevice-createtexture)):
+> `descriptor.format must support multisampling according to [[#texture-format-caps]].`
+
+**Verification:**
+- Chrome passes this test (allows pipeline creation with rgba32uint + sampleCount=4)
+- Firefox fails this test (same early validation as wgpu)
+- The CTS test is correct - it creates a render pipeline but never creates actual multisampled rgba32uint textures
 
 **Fix needed:**
-Fix the validation logic for multisampled render targets to correctly check format support. The validation appears to be incorrectly rejecting formats that are actually supported for multisampling.
+Remove or defer multisampling format validation from render pipeline creation. The validation should only occur at texture creation time, not when specifying color target formats in a pipeline. This is a case where wgpu is being stricter than the spec requires, causing CTS failures.
+
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/8986
 
 ### 5. Workgroup Storage Size Validation Gap
 **Test selector:** `webgpu:api,validation,capability_checks,limits,maxComputeWorkgroupStorageSize:createComputePipeline,at_over:*`
@@ -187,6 +211,8 @@ wgpu is not validating that the total size of workgroup-shared variables in a co
 **Fix needed:**
 Add validation during compute pipeline creation to calculate the total workgroup storage size used by the shader and reject pipelines that exceed `maxComputeWorkgroupStorageSize`.
 
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/8946
+
 ### 6. Incorrect Limit Value: maxInterStageShaderVariables
 **Test selector:** `webgpu:api,validation,capability_checks,limits,maxInterStageShaderVariables:createRenderPipeline,at_over:*`
 
@@ -208,62 +234,4 @@ wgpu is reporting `maxInterStageShaderVariables` as 15, but the WebGPU specifica
 **Fix needed:**
 Update the default value for `maxInterStageShaderVariables` from 15 to 16 to match the WebGPU specification.
 
-### 7. Feature-Dependent Test Skips
-Many tests in `maxInterStageShaderVariables` are skipped because they require unimplemented features:
-- `primitive-index` feature (for `@builtin(primitive_index)`)
-- Subgroup features (for `@builtin(subgroup_invocation_id)`, `@builtin(subgroup_size)`)
-
-These skips are expected and do not represent bugs in the limits implementation.
-
-### 8. Backend Crash: Large Buffer Allocation
-**Issue:** When running all limit tests together, wgpu panics in the Metal backend at `wgpu-hal/src/metal/device.rs:412:18` with:
-```
-called `Option::unwrap()` on a `None` value
-```
-
-**Root cause:**
-The code calls `newBufferWithLength_options().unwrap()` which panics when Metal returns `None` (likely because the requested buffer size is too large to allocate).
-
-**Impact:**
-This prevents running the full limit test suite in a single pass. Tests must be run per-limit to avoid hitting this crash.
-
-**Fix needed:**
-Replace the `.unwrap()` with proper error handling that returns a wgpu error instead of panicking. This is particularly important for limit tests which intentionally try to allocate resources at the maximum supported sizes.
-
-## Testing Notes
-
-1. Individual limit categories were tested separately due to the Metal backend crash when testing all limits together.
-2. The crash appears to occur when tests for buffer-size-related limits (`maxBufferSize`) attempt to allocate very large buffers.
-3. Many tests have skip conditions for features not yet implemented (subgroup operations, primitive-index, etc.).
-4. The overall pattern shows that basic limit functionality works, but there are gaps in:
-   - Missing limit implementations (per-stage limits, maxBindGroupsPlusVertexBuffers)
-   - Validation of over-limit resource usage
-   - Device creation validation when requested limits exceed maximums
-   - Correct default limit values
-
-## Recommendations
-
-**Priority 1 (High Impact):**
-1. Fix the Metal backend crash by adding proper error handling for failed buffer allocations
-2. Implement missing limits: `maxBindGroupsPlusVertexBuffers` and the four per-stage storage limits
-3. Add device creation validation to reject or clamp over-limit requests
-
-**Priority 2 (Validation Gaps):**
-1. Add validation for workgroup storage size limits
-2. Fix the multisampling format validation bug in `maxColorAttachmentBytesPerSample`
-3. Correct the `maxInterStageShaderVariables` default value from 15 to 16
-
-**Priority 3 (Lower Impact):**
-1. Investigate and fix remaining failures in per-shader-stage limits with similar patterns
-2. Add validation for other resource limits that currently have gaps
-
-## Overall Assessment
-
-The limit checking implementation in wgpu is partially complete:
-- ✅ Core limits are exposed and functional
-- ✅ Basic limit validation works for many common cases
-- ❌ Several important limits are not yet implemented
-- ❌ Device creation doesn't properly validate requested limits against maximums
-- ❌ Some validation checks are missing or incorrect
-
-The 54.7% pass rate is reasonable given the missing implementations, but could be significantly improved by addressing the missing limits and validation gaps identified above.
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/8945
