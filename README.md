@@ -274,7 +274,7 @@ Logic bug: using `max()` instead of `+=` when merging binding counts (11 failure
 
 **Fix:** Change `merge()` method in `binding_model.rs` from using `max()` to `+=`.
 
-TODO: file bug
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/8993
 
 ## Vertex Shader Storage (25% pass)
 
