@@ -190,6 +190,8 @@ Selector: `webgpu:api,validation,capability_checks,limits,*`
 
 See: `docs/cts-triage/capability_checks_limits.md` for detailed analysis.
 
+**Related issues:** https://github.com/gfx-rs/wgpu/issues/8947, https://github.com/gfx-rs/wgpu/issues/8832, https://github.com/gfx-rs/wgpu/issues/8748, https://github.com/gfx-rs/wgpu/issues/8983, https://github.com/gfx-rs/wgpu/issues/8986, https://github.com/gfx-rs/wgpu/issues/8946, https://github.com/gfx-rs/wgpu/issues/8945
+
 ---
 
 # Compute Pipeline Validation
@@ -216,11 +218,15 @@ Selector: `webgpu:api,validation,compute_pipeline:overrides,workgroup_size,limit
 
 See: `docs/cts-triage/compute_pipeline_overrides_workgroup_storage_size.md` for full analysis.
 
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/8946
+
 ## Override Workgroup Size Limits (0% pass)
 
 Selector: `webgpu:api,validation,compute_pipeline:overrides,workgroup_size,limits:*`
 
 Missing re-validation of workgroup size (dimensions, not storage) limits after pipeline constants applied (2 failures).
+
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/8946
 
 ---
 
@@ -253,6 +259,8 @@ See: `docs/cts-triage/compute_pipeline_overrides.md` for details.
 Selector: `webgpu:api,validation,createBindGroup:buffer,resource_state:*`
 
 Destroyed buffer validation timing - known issue #7881 (1 failure).
+
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/7881
 
 ---
 
@@ -312,6 +320,8 @@ Selector: `webgpu:api,validation,createView:texture_state:*`
 
 Destroyed texture validation timing - known issue #7881 (1 failure).
 
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/7881
+
 ---
 
 # Encoding Validation
@@ -334,6 +344,8 @@ null/undefined not accepted in bindGroupLayouts array - type conversion issue (3
 ## ResolveQuerySet (93% pass)
 
 Destroyed query set validation - known issue #7881 (1 failure).
+
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/7881
 
 ## Render Bundle (81% pass)
 
