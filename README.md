@@ -278,19 +278,21 @@ TODO: file bug
 
 ## Vertex Shader Storage (25% pass)
 
-Selector: `webgpu:api,validation,createBindGroupLayout:visibility,VERTEX_shader_stage_buffer_type:*`
+Selector:
+- `webgpu:api,validation,createBindGroupLayout:visibility,VERTEX_shader_stage_buffer_type:*`
+- `webgpu:api,validation,createBindGroupLayout:visibility,VERTEX_shader_stage_storage_texture_access:*`
 
-Missing validation: writable storage buffers not allowed in VERTEX stage (6 failures).
+**What it tests:**
+1. Writable storage buffers (`type="storage"`) must not be visible to VERTEX stage
+2. Read-only storage buffers (`type="read-only-storage"`) are only allowed if `maxStorageBuffersInVertexStage > 0`
+3. Writable storage textures (`access="write-only"`, `"read-write"`, or undefined) must not be visible to VERTEX stage
+4. Read-only storage textures (`access="read-only"`) are only allowed if `maxStorageTexturesInVertexStage > 0`
 
-TODO: file bug
+**Root cause:** wgpu correctly rejects writable storage in VERTEX (requirement #1/#3). However, wgpu incorrectly accepts read-only storage regardless of the per-stage limit (requirement #2/#4). The failures are all for read-only subcases where the limit is 0/undefined.
 
-## Vertex Shader Storage Textures (25% pass)
+See: `docs/cts-triage/createBindGroupLayout_vertex_writable_storage.md`
 
-Selector: `webgpu:api,validation,createBindGroupLayout:visibility,VERTEX_shader_stage_storage_texture_access:*`
-
-Missing validation: write-access storage textures not allowed in VERTEX stage (6 failures).
-
-TODO: file bug
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/8748
 
 ---
 
@@ -311,6 +313,8 @@ Selector: `webgpu:api,validation,createBindGroupLayout:visibility:*` with visibi
 **Fix needed:** Add four per-stage limit fields to Limits struct, add validation in create_bind_group_layout_internal, map device capabilities to limits.
 
 See: `docs/cts-triage/createBindGroupLayout_visibility.md` for details.
+
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/8748
 
 ---
 
