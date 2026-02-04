@@ -268,13 +268,46 @@ Destroyed buffer validation timing - known issue #7881 (1 failure).
 
 ## Max Resources Per Stage (0% pass)
 
-Selector: `webgpu:api,validation,createBindGroupLayout:max_resources_per_stage,in_pipeline_layout:*`
+Selectors:
+- `webgpu:api,validation,createBindGroupLayout:max_resources_per_stage,in_bind_group_layout:*`
+- `webgpu:api,validation,createBindGroupLayout:max_resources_per_stage,in_pipeline_layout:*`
+
+### 1. Incorrect calculation of binding counts
 
 Logic bug: using `max()` instead of `+=` when merging binding counts (11 failures).
 
 **Fix:** Change `merge()` method in `binding_model.rs` from using `max()` to `+=`.
 
 **Related issue:** https://github.com/gfx-rs/wgpu/issues/8993
+
+### 2. `GPUSupportedLimits.maxStorage{Buffers,Textures}In{Vertex,Fragment}Stage` are unrecognized
+
+These limits have not been implemented.
+
+One signature of failures due to the missing limits is: `TypeError: Failed to
+execute 'call' on 'GPUDevice': 'binding' of 'GPUBindGroupLayoutEntry'
+('entries' of 'GPUBindGroupLayoutDescriptor' (Argument 0), index 0) is not a
+finite number`.
+
+**Related issue:** : https://github.com/gfx-rs/wgpu/issues/8748
+
+### 3. `Binding index 1000 is greater than the maximum number 1000`
+
+All of the `in_pipeline_layout` tests fail on Vulkan with this symptom, and all
+but the sampler `in_pipeline_layout` tests fail on dx12 with this symptom. This
+may or may not be due to the missing limit support.
+
+**Related issue:** None filed.
+
+### 4. Claimed buffer limits are not supported on Metal
+
+We report limits on Metal that we do not actually support.
+
+The symptom of this is `[ERROR wgpu_hal::metal::device] Resource limit
+exceeded: StageInfo { stage: Compute, counters: ResourceData { buffers: 32,
+textures: 0, samplers: 0 }, ...`.
+
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/8173
 
 ## Vertex Shader Storage (25% pass)
 

@@ -50,6 +50,7 @@ previously satisfied the criteria above.
 - [x] `webgpu:api,validation,createBindGroup:texture,resource_state:*`
 
 ## CreateBindGroupLayout
+- [x] `webgpu:api,validation,createBindGroupLayout:max_resources_per_stage,in_bind_group_layout:*`
 - [x] `webgpu:api,validation,createBindGroupLayout:max_resources_per_stage,in_pipeline_layout:*`
 - [x] `webgpu:api,validation,createBindGroupLayout:visibility,VERTEX_shader_stage_buffer_type:*`
 - [x] `webgpu:api,validation,createBindGroupLayout:visibility,VERTEX_shader_stage_storage_texture_access:*`
