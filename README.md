@@ -431,6 +431,8 @@ Selector: `webgpu:api,validation,non_filterable_texture:*`
 
 Missing validation: depth textures with filtering samplers should be rejected (32 failures).
 
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/8513
+
 ---
 
 # Queue Destroyed
@@ -483,6 +485,8 @@ TypeError: depth_clear_value is required when depth_load_op is 'clear'
 ```
 
 **Root cause:** The error is thrown as a TypeError at the deno binding layer instead of being returned as a GPUValidationError through the WebGPU error handling mechanism. The CTS expects validation errors to be captured through error scopes, not thrown as JavaScript exceptions.
+
+**Related PR:** https://github.com/gfx-rs/wgpu/pull/9000
 
 ---
 
@@ -719,6 +723,8 @@ Selector: `webgpu:api,validation,render_pipeline,overrides:*`
 **Fix needed:** Add validation in Naga's process_overrides to check all provided keys: correspond to actual override, use correct identifier (numeric for @id, name otherwise), no invalid characters, correct Unicode normalization.
 
 See: `docs/cts-triage/render_pipeline_overrides.md` for details.
+
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/8906
 
 ---
 
@@ -1020,7 +1026,7 @@ Where one operand is pure override (should be evaluated early) and the other mix
 
 See: `docs/cts-triage/expression_early_evaluation.md`
 
-TODO: bug
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/9002
 
 ---
 
@@ -1750,7 +1756,7 @@ if desc.count == 0 {
 
 **Impact:** Low - affects edge case of creating query sets with zero queries, which is uncommon but should be spec-compliant.
 
-TODO: file bug (but very minor)
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/9001
 
 ---
 
