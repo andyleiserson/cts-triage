@@ -190,7 +190,14 @@ Selector: `webgpu:api,validation,capability_checks,limits,*`
 
 See: `docs/cts-triage/capability_checks_limits.md` for detailed analysis.
 
-**Related issues:** https://github.com/gfx-rs/wgpu/issues/8947, https://github.com/gfx-rs/wgpu/issues/8832, https://github.com/gfx-rs/wgpu/issues/8748, https://github.com/gfx-rs/wgpu/issues/8983, https://github.com/gfx-rs/wgpu/issues/8986, https://github.com/gfx-rs/wgpu/issues/8946, https://github.com/gfx-rs/wgpu/issues/8945
+**Related issues:**
+- [ ] https://github.com/gfx-rs/wgpu/issues/8947
+- [ ] https://github.com/gfx-rs/wgpu/issues/8832
+- [ ] https://github.com/gfx-rs/wgpu/issues/8748
+- [ ] https://github.com/gfx-rs/wgpu/issues/8983
+- [ ] https://github.com/gfx-rs/wgpu/issues/8986
+- [ ] https://github.com/gfx-rs/wgpu/issues/8946
+- [ ] https://github.com/gfx-rs/wgpu/issues/8945
 
 ---
 
@@ -396,6 +403,8 @@ Selector: `webgpu:api,validation,encoding,render_bundle:*`
 
 **Root cause:** When a render bundle is created with certain readonly depth/stencil configurations, the flags are not being normalized consistently between the bundle encoder and the render pass. This causes compatibility checks to fail when they should pass, or vice versa.
 
+**Likely related issue:** https://github.com/gfx-rs/wgpu/issues/8030
+
 ---
 
 # getBindGroupLayout
@@ -421,6 +430,8 @@ Unexpected validation error occurred: Invalid group index 1
 1. Check if `index >= device.limits.max_bind_groups` and return error if so
 2. For indices within bounds but beyond defined layouts, return an empty bind group layout
 
+**Related PR:** https://github.com/gfx-rs/wgpu/pull/9034
+
 ---
 
 # Non-Filterable Textures
@@ -445,11 +456,13 @@ Selector: `webgpu:api,validation,queue,destroyed,*`
 
 Tests expect `writeBuffer` and `writeTexture` to return `undefined`, but the implementation may be returning something else or throwing when it shouldn't.
 
+**Related PR (deno):** <https://github.com/denoland/deno_core/pull/1307>
+
 ## 2. Destroyed query set validation missing
 
-Tests with destroyed query sets are not being properly validated.
+**Root cause:** wgpu reports errors related to destroyed query sets at different times than the WebGPU spec requires.
 
-_[Ed.: but this is a queue test? I'm dubious.]_
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/7881
 
 ---
 
@@ -466,27 +479,6 @@ Selector: `webgpu:api,validation,queue,writeBuffer:ranges:*`
 **Root cause:** deno\_webgpu is not validating the data source bounds properly or not returning the correct error type when validation fails. `wgpu` also fails to raise a validation error for zero-size transfers beyond the end of the buffer.
 
 **Related issue:** https://github.com/gfx-rs/wgpu/issues/8920 (wgpu), none filed for deno
-
----
-
-# Render Pass depth_clear_value
-
-Selector: `webgpu:api,validation,render_pass,render_pass_descriptor:depth_stencil_attachment,depth_clear_value:*`
-
-**Overall Status:** 94% pass
-
-## 1. TypeError at deno binding layer instead of validation error
-
-**What it tests:** Validates that `depthClearValue` must be within [0.0, 1.0] range when `depthLoadOp` is "clear".
-
-**Error:**
-```
-TypeError: depth_clear_value is required when depth_load_op is 'clear'
-```
-
-**Root cause:** The error is thrown as a TypeError at the deno binding layer instead of being returned as a GPUValidationError through the WebGPU error handling mechanism. The CTS expects validation errors to be captured through error scopes, not thrown as JavaScript exceptions.
-
-**Related PR:** https://github.com/gfx-rs/wgpu/pull/9000
 
 ---
 
@@ -517,11 +509,15 @@ Per the WebGPU specification, the rules are:
 1. If format lacks depth aspect but `depthLoadOp` or `depthStoreOp` are provided → validation error
 2. If format lacks stencil aspect but `stencilLoadOp` or `stencilStoreOp` are provided → validation error
 
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/2944 and/or https://github.com/gfx-rs/wgpu/issues/8030
+
 ## Occlusion Query Set Type (50% pass)
 
 Selector: `webgpu:api,validation,render_pass,render_pass_descriptor:occlusionQuerySet,query_set_type:*`
 
 Missing validation: occlusionQuerySet must have type "occlusion" (1 failure).
+
+**Related PR:** https://github.com/gfx-rs/wgpu/pull/9086
 
 ---
 
@@ -618,6 +614,10 @@ Tests that properly fail validation (??? so why are they failures???):
 - Non-zero location with `@blend_src`
 - Missing one of the required pair
 
+**Related PR:** https://github.com/gfx-rs/wgpu/pull/8939
+
+TODO: revise and merge the pending fixes.
+
 ---
 
 # Fragment State targets_blend
@@ -684,23 +684,6 @@ Per WebGPU spec:
 **Fix needed:** Implement default-aware comparison that treats `None` as `Some(Center)` when interpolation is `Perspective` or `Linear`.
 
 TODO: verify and file issue
-
-## 3. Fragment input variable counting with built-ins (2 failures)
-
-**Root cause:** Fragment input variable counting logic appears incorrect when built-ins are present.
-
-**Example:**
-- Test creates pipeline with `maxInterStageShaderVariables - 1` (30) user-defined variables plus 3 built-in inputs
-- wgpu reports: "found 30 user-defined fragment shader input variables, which exceeds the max_inter_stage_shader_variables limit (31)"
-- Since 30 ≤ 31, this should pass, but wgpu rejects it
-
-**Expected behavior:** The test expects this to succeed when using 30 user-defined variables + 3 built-ins with appropriate deductions.
-
-**Code location:** `/Users/Andy/Development/wgpu2/wgpu-core/src/validation.rs` (fragment input variable counting)
-
-**Fix needed:** Review the variable counting logic to ensure built-in deductions are properly applied before comparison.
-
-**Impact:** Moderate - affects inter-stage variable validation, a core WebGPU feature.
 
 ---
 
@@ -870,22 +853,6 @@ See [#8868](https://github.com/gfx-rs/wgpu/issues/8868).
 
 ---
 
-# Shader Context Dependent Resolution
-
-Selector: `webgpu:shader,validation,decl,context_dependent_resolution:*`
-
-**Overall Status:** 60P/1F/4S (92.31% pass rate)
-
-**Root cause:** Naga treats `f16` as a reserved keyword unconditionally. When `enable f16;` is used, the name `f16` should be available as a regular identifier (context-dependent resolution), but Naga's lexer rejects it. The `word_as_ident` function in `naga/src/front/wgsl/parse/lexer.rs:495-500` checks reserved keywords without considering enabled extensions.
-
-**Failing test:** `enable_names:case="f16"` - Tests that `f16` can be used as identifier after `enable f16;`
-
-**Fix needed:** Modify lexer to accept enable extension names as identifiers when those extensions are enabled.
-
-See: `docs/cts-triage/shader_context_dependent_resolution.md`
-
----
-
 # Shader Override Declarations
 
 Selector: `webgpu:shader,validation,decl,override:*`
@@ -978,6 +945,8 @@ Selector: `webgpu:shader,validation,expression,access,vector:*`
 **Pattern:** All 40 failures with vector_width=2 or 3. Tests with vector_width=4 pass.
 
 See: `docs/cts-triage/expression_access_vector.md` for details.
+
+**Related PR:** https://github.com/gfx-rs/wgpu/pull/8949
 
 ---
 
@@ -1234,7 +1203,6 @@ Selectors:
 
 1. Offset validation (10+ failures) - Naga is not properly validating that offset values are within the required range [-8, +7]. This affects `textureSampleBias`, `textureSampleCompare`, `textureSampleCompareLevel`, and `textureSampleLevel`.
 2. Texture type mismatches with offsets (2 failures) - Cube textures used with 3D parameters and offset=true
-3. must_use validation (1 failure) - Not enforcing that builtin function results must be used
 
 ---
 
@@ -1244,9 +1212,9 @@ Selector: `webgpu:shader,validation,expression,call,builtin,textureGather:*`
 
 **Overall Status:** ~99% pass rate
 
-**Root cause:** Minimal failures (~1%) likely due to must_use validation infrastructure issue (#8876). Naga implements comprehensive validation for textureGather including component parameter validation, dimension restrictions, const-expression requirements, and offset range validation.
+**Root cause:** Small number of failures due to lack of expected validation errors. Appears to be due to missing validation of `offset` argument and some invalid usages involving depth textures.
 
-See: `docs/cts-triage/builtin_textureGather.md`
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/9087
 
 ---
 
@@ -1445,31 +1413,7 @@ Selector: `webgpu:shader,validation,statement,phony:*`
 
 **What it tests:** WGSL phony assignments (`_ = expr`) are special statements that discard values. The spec defines specific syntax rules for where they can appear, including within for-loops.
 
-**Test suite breakdown:**
-- `rhs_constructible`: Tests that phony assignment RHS can be constructible types (17 tests)
-- `rhs_with_decl`: Tests phony assignment RHS with various declarations (23 tests)
-- `parse`: Tests parsing rules for phony assignment syntax (21 tests)
-- `module_scope`: Tests that phony assignment is rejected at module scope (1 test)
-
-**Known failures (approximately 6 tests):**
-The primary failures are related to phony assignment syntax in for-loops:
-- `in_for_init_semi`: `for (_ = v;;false;) {}` - Should fail (extra semicolon), but may be incorrectly accepted
-- `in_for_update_semi`: `for (;false; _ = v;) {}` - Should fail (extra semicolon), but may be incorrectly accepted
-
-Additionally, some tests may fail due to:
-- Atomic type validation in phony assignments
-- Unsized array type validation
-- Parse error messages not matching expected patterns
-
-**Root cause:** Naga's WGSL parser may not correctly enforce the syntax rules for phony assignments in for-loop init and update clauses, specifically around semicolon placement.
-
-**Related work:**
-- Issue #7524: Fixed phony assignments not being included in bind group layouts (resolved in PR #7540)
-- PR #6328: Fixed handling of phony statements so they are actually emitted
-
-**References:**
-- WebGPU Spec: https://www.w3.org/TR/WGSL/#phony-assignment-section
-- Phony assignments are used to discard @must_use function results or include unused bindings in shader interfaces
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/5474
 
 ---
 
