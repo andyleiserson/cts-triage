@@ -384,33 +384,6 @@ Selector: `webgpu:api,validation,encoding,render_bundle:*`
 
 ---
 
-# getBindGroupLayout
-
-Selector: `webgpu:api,validation,getBindGroupLayout:*`
-
-**Overall Status:** 4P/10F/0S (28.57%/71.43%/0%)
-
-## 1. getBindGroupLayout rejects valid indices beyond defined layouts
-
-Selectors: `webgpu:api,validation,getBindGroupLayout:index_range,*:index=1..5`
-
-**What it tests:** Per WebGPU spec, `getBindGroupLayout(index)` should only fail validation if `index >= device.limits.maxBindGroups`. For indices within bounds but beyond the defined layouts, it should return an empty bind group layout.
-
-**Error:**
-```
-Unexpected validation error occurred: Invalid group index 1
-```
-
-**Root cause:** In `wgpu-core/src/device/global.rs` (lines 1563-1567), the code validates that the requested index exists within the pipeline's actual bind group layouts array. But the spec says `[[bindGroupLayouts]]` should conceptually have `maxBindGroups` entries (with `null` for unused indices).
-
-**Fix needed:** Modify `render_pipeline_get_bind_group_layout` and `compute_pipeline_get_bind_group_layout` to:
-1. Check if `index >= device.limits.max_bind_groups` and return error if so
-2. For indices within bounds but beyond defined layouts, return an empty bind group layout
-
-**Related PR:** https://github.com/gfx-rs/wgpu/pull/9034
-
----
-
 # Non-Filterable Textures
 
 Selector: `webgpu:api,validation,non_filterable_texture:*`
@@ -487,14 +460,6 @@ Per the WebGPU specification, the rules are:
 2. If format lacks stencil aspect but `stencilLoadOp` or `stencilStoreOp` are provided → validation error
 
 **Related issue:** https://github.com/gfx-rs/wgpu/issues/2944 and/or https://github.com/gfx-rs/wgpu/issues/8030
-
-## Occlusion Query Set Type (50% pass)
-
-Selector: `webgpu:api,validation,render_pass,render_pass_descriptor:occlusionQuerySet,query_set_type:*`
-
-Missing validation: occlusionQuerySet must have type "occlusion" (1 failure).
-
-**Related PR:** https://github.com/gfx-rs/wgpu/pull/9086
 
 ---
 
