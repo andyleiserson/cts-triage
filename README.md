@@ -323,12 +323,11 @@ Selector:
 - `webgpu:api,validation,createBindGroupLayout:visibility,VERTEX_shader_stage_storage_texture_access:*`
 
 **What it tests:**
-1. Writable storage buffers (`type="storage"`) must not be visible to VERTEX stage
-2. Read-only storage buffers (`type="read-only-storage"`) are only allowed if `maxStorageBuffersInVertexStage > 0`
-3. Writable storage textures (`access="write-only"`, `"read-write"`, or undefined) must not be visible to VERTEX stage
-4. Read-only storage textures (`access="read-only"`) are only allowed if `maxStorageTexturesInVertexStage > 0`
+1. Read-only storage buffers (`type="read-only-storage"`) are only allowed if `maxStorageBuffersInVertexStage > 0`
+2. Read-only storage textures (`access="read-only"`) are only allowed if `maxStorageTexturesInVertexStage > 0`
+3. Write-only storage bindings are never allowed (except as a wgpu extension)
 
-**Root cause:** wgpu correctly rejects writable storage in VERTEX (requirement #1/#3). However, wgpu incorrectly accepts read-only storage regardless of the per-stage limit (requirement #2/#4). The failures are all for read-only subcases where the limit is 0/undefined.
+**Root cause:** wgpu does not implement the new decoupled binding limits for vertex/fragment stage
 
 See: `docs/cts-triage/createBindGroupLayout_vertex_writable_storage.md`
 
@@ -620,25 +619,6 @@ TODO: revise and merge the pending fixes.
 
 ---
 
-# Fragment State targets_blend
-
-Selector: `webgpu:api,validation,render_pipeline,fragment_state:targets_blend:*`
-
-**Overall Status:** ~0% pass (99.65% fail)
-
-## 1. Missing min/max blend factor validation
-
-**What it tests:** Validates that blend factors `min` and `max` cannot be used with certain blend operations.
-
-**Error:**
-```
-VALIDATION FAILED: Validation succeeded unexpectedly.
-```
-
-**Root cause:** wgpu does not validate that `min` and `max` blend factors are only valid with specific blend operations. The WebGPU spec restricts their usage but wgpu accepts them unconditionally.
-
----
-
 # Render Pipeline Inter Stage (85% pass)
 
 Selector: `webgpu:api,validation,render_pipeline,inter_stage:*`
@@ -661,7 +641,7 @@ Selector: `webgpu:api,validation,render_pipeline,inter_stage:*`
 
 **Fix needed:** Replace subtype checking with exact type equality for inter-stage variables.
 
-TODO: verify and file issue
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/9143
 
 ## 2. Interpolation default handling (8 failures)
 
@@ -683,7 +663,7 @@ Per WebGPU spec:
 
 **Fix needed:** Implement default-aware comparison that treats `None` as `Some(Center)` when interpolation is `Perspective` or `Linear`.
 
-TODO: verify and file issue
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/9143
 
 ---
 
@@ -713,33 +693,15 @@ See: `docs/cts-triage/render_pipeline_overrides.md` for details.
 
 # Render Pipeline Output Targets (3% pass)
 
-Selector: `webgpu:api,validation,render_pipeline,fragment_state:pipeline_output_targets:*`
+Selectors:
+- `webgpu:api,validation,render_pipeline,fragment_state:pipeline_output_targets:*`
+- `webgpu:api,validation,render_pipeline,fragment_state:pipeline_output_targets,blend:*`
 
-Color target without shader output requires writeMask=0 (66 failures).
+Root causes:
+- Color target without shader output requires writeMask=0 (66 failures).
+- Blend factors reading source alpha require vec4 output (100 failures).
 
----
-
-# Render Pipeline Output Targets Blend (95% pass)
-
-Selector: `webgpu:api,validation,render_pipeline,fragment_state:pipeline_output_targets,blend:*`
-
-Blend factors reading source alpha require vec4 output (100 failures).
-
----
-
-# Render Pipeline Storage Texture Format (8% pass)
-
-Selector: `webgpu:api,validation,render_pipeline:storage_texture,format:*`
-
-Similar to compute pipeline issue.
-
----
-
-# Render Pipeline Targets Write Mask (50% pass)
-
-Selector: `webgpu:api,validation,render_pipeline,fragment_state:targets_write_mask:*`
-
-Write mask validation at wrong layer - TypeError instead of validation error (4 failures).
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/9147
 
 ---
 
@@ -758,6 +720,8 @@ Selector: `webgpu:api,validation,render_pipeline:vertex_state:*`
 **Secondary issue:** Internal errors have empty messages in deno\_webgpu (`error.rs:186`), causing "undefined" error messages in tests.
 
 See: `docs/cts-triage/render_pipeline_vertex_state.md`
+
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/7912 (That issue is for nullable vertex buffers, so may not inherently fix this issue, but is probably a good time to address it, and it doesn't seem worth a dedicated bug when that one already exists.)
 
 ---
 
@@ -782,7 +746,7 @@ Selector: `webgpu:shader,validation,decl,var:*`
 
 See: `docs/cts-triage/shader_validation_decl_var.md`
 
-**Related issues:** https://github.com/gfx-rs/wgpu/issues/8925, TODO
+**Related issues:** https://github.com/gfx-rs/wgpu/issues/8925, https://github.com/gfx-rs/wgpu/issues/9148
 
 ---
 
@@ -810,20 +774,6 @@ Selector: `webgpu:shader,validation,expression,binary,bitwise_shift:partial_eval
 
 ---
 
-# Builtin Functions dot4I8Packed and dot4U8Packed (91% pass)
-
-Selectors:
-- `webgpu:shader,validation,expression,call,builtin,dot4I8Packed:*`
-- `webgpu:shader,validation,expression,call,builtin,dot4U8Packed:*`
-
-**Overall Status:** 91% pass (20P/0F/2S out of 22 tests each)
-
-**Failing tests:** 3 tests per selector fail due to missing constant evaluation
-support (#4507). _[Ed.: Either this statement, or the summary line
-above, must be incorrect.]_
-
----
-
 # Matrix Expression Validation
 
 Selector: `webgpu:shader,validation,expression,matrix,*`
@@ -832,24 +782,21 @@ Selector: `webgpu:shader,validation,expression,matrix,*`
 
 ## Remaining Issues (205 failures)
 
-### 1. Matrix Multiplication Constant Evaluation (129 failures in mul)
-**Status:** Known limitation - DO NOT FIX
+### 1. Constant Evaluation of matrix operations (~185 failures)
 
-Naga does not support matrix multiplication in constant evaluation.
+Naga does not support matrix add, sub, or multiply in constant evaluation.
 
-### 2. Matrix Addition/Subtraction Constant Evaluation (56 failures in add_sub)
-**Status:** Known limitation
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/8790
 
-The constant evaluator's `binary_op` function only handles `Vector + Vector` for Compose types. It does not handle `Matrix + Matrix` constant evaluation.
-
-### 3. Atomic Direct Reference (14 failures total)
-**Status:** Known issue #5474 - DO NOT FIX
+### 2. Atomic Direct Reference (14 failures total)
 
 Naga allows referencing atomics directly instead of requiring atomic functions.
 
-### 4. Incorrect binary operands accepted in constant evaluation
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/5474
 
-See [#8868](https://github.com/gfx-rs/wgpu/issues/8868).
+### 3. Incorrect binary operands accepted in constant evaluation
+
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/8868
 
 ---
 
@@ -872,7 +819,7 @@ Selector: `webgpu:shader,validation,decl,override:*`
 
 **What's happening:** Test expects ptr<workgroup> parameters to work, but Naga rejects them as requiring unrestricted_pointer_parameters extension (not implemented, tracked in #5158).
 
-**TODO:** Fix CTS to check for feature support.
+**Related PR:** https://github.com/gpuweb/cts/pull/4610
 
 ## Issue 2: Missing Validation for Override-Sized Arrays in Private Address Space
 
@@ -883,6 +830,8 @@ Selector: `webgpu:shader,validation,decl,override:*`
 **Fix needed:** Add Naga validation to reject override-sized arrays in non-workgroup address spaces.
 
 See: `docs/cts-triage/shader_decl_override.md` for details.
+
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/9148
 
 ---
 
@@ -920,7 +869,7 @@ Selector: `webgpu:shader,validation,expression,access,matrix:*`
 
 **Root cause:** Naga performs bounds checking on runtime indices with literal values (e.g., `let idx = -1`). Spec requires validation errors only for const-expressions, not runtime expressions with literals. Validator doesn't distinguish const from let.
 
-**Related issue:** #4390
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/4390
 
 ---
 
@@ -936,17 +885,7 @@ Selector: `webgpu:shader,validation,expression,access,vector:*`
 
 **Impact:** Tests with `let`/`var` and OOB indices fail when they should pass.
 
-**Related issue:** #4390
-
-## 2. Missing Swizzle Validation
-
-**Problem:** Naga doesn't validate swizzle components exist for vector's width. Accepts invalid swizzles (e.g., v.xyz on vec2).
-
-**Pattern:** All 40 failures with vector_width=2 or 3. Tests with vector_width=4 pass.
-
-See: `docs/cts-triage/expression_access_vector.md` for details.
-
-**Related PR:** https://github.com/gfx-rs/wgpu/pull/8949
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/4390
 
 ---
 
@@ -960,7 +899,7 @@ Selector: `webgpu:shader,validation,expression,binary,add_sub_mul:*`
 
 **Root cause:** Naga uses checked_add/sub/mul and errors on overflow. WGSL spec requires wrapping semantics for integer constant evaluation.
 
-**Related PR:** [#8912](https://github.com/gfx-rs/wgpu/pull/8912)
+**Related PR:** https://github.com/gfx-rs/wgpu/pull/8912
 
 ## 2. f16 Constant Evaluation Doesn't Reject Overflow (21 failures)
 
@@ -1020,6 +959,8 @@ Selector: `webgpu:shader,validation,expression,unary:*`
 
 See: `docs/cts-triage/expression_unary.md`
 
+**Related PR:** https://github.com/gfx-rs/wgpu/pull/9157
+
 ---
 
 # Shader Statement Validation
@@ -1044,6 +985,8 @@ Selector: `webgpu:shader,validation,statement,for:*`
 
 See: `docs/cts-triage/shader_statement_for.md`
 
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/9150
+
 ---
 
 # Shader Builtin Functions
@@ -1058,6 +1001,8 @@ Selector: `webgpu:shader,validation,expression,call,builtin,atomics:*`
 
 1. **Vertex shader stage validation (11 failures)** - Atomic operations incorrectly accepted in vertex shaders. Per WGSL spec, atomic builtin functions must not be used in vertex shader stages, but wgpu accepts them.
 
+**Note:** This requirement is not cited explicitly in #9148, but it follows from the requirements that atomics be in read-write storage and that read-write storage is not supported in the vertex stage.
+
 2. **Address space and access mode validation (11 failures)** - Atomics incorrectly accepted in invalid configurations:
    - Storage atomics with `read` access (should require `read_write`)
    - Atomics in `private` address space (only `storage` and `workgroup` are valid)
@@ -1066,6 +1011,8 @@ Selector: `webgpu:shader,validation,expression,call,builtin,atomics:*`
 **Note:** These failures are distinct from issue #5474 (direct atomic references). These are about missing validation when atomic builtin functions are used in invalid contexts.
 
 See: `docs/cts-triage/builtin_atomics.md`
+
+**Related issues:** https://github.com/gfx-rs/wgpu/issues/9148
 
 ---
 
@@ -1087,6 +1034,8 @@ Selector: `webgpu:shader,validation,expression,call,builtin,bitcast:*`
 
 See: `docs/cts-triage/builtin_bitcast.md`
 
+**Related issues:** https://github.com/gfx-rs/wgpu/issues/7700, https://github.com/gfx-rs/wgpu/issues/8896
+
 ---
 
 ## `asinh()`: Large f32 values produce infinity
@@ -1105,6 +1054,8 @@ Selector: `webgpu:shader,validation,expression,call,builtin,asinh:*`
 
 See: `docs/cts-triage/builtin_asinh.md`
 
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/8900
+
 ---
 
 ## `clamp()`: Constraint Validation
@@ -1121,7 +1072,7 @@ Selector: `webgpu:shader,validation,expression,call,builtin,clamp:*`
 
 See: `docs/cts-triage/builtin_clamp.md`
 
-TODO: file bug
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/9152
 
 ---
 
@@ -1143,34 +1094,7 @@ Selectors:
 
 See: `docs/cts-triage/bulitin_derivative.md` for details.
 
-## `distance()`: 1D distance calculation error
-
-Selector: `webgpu:shader,validation,expression,call,builtin,distance:*`
-
-**Example failure:**
-```
-webgpu:shader,validation,expression,call,builtin,distance:values:stage="constant";type="f32"
-Subcase: a=-3.4028234663852886e+38;b=-11728123330560
-```
-
-**Error:**
-```
-Shader '' parsing error: Float literal is infinite
-  ┌─ wgsl:2:12
-  │
-2 │ const v  = distance(-3.4028234663852886e+38f, -11728123330560.0f);
-  │            ^^^^^^^^ see msg
-```
-
-**Root cause:**
-Naga's constant evaluator computes `distance(a, b)` for scalars using the generic formula `sqrt((a-b)²)`, which causes overflow to infinity even when `a-b` is representable. 
-
-For the failing case above:
-- `a - b = -3.4028235e38 - (-1.17e13) ≈ -3.4028235e38` (finite, representable in f32)
-- `(a-b)² = 1.158e77` (overflows f32 max of 3.4e38 → **infinity**)
-- `sqrt(infinity) = infinity` (rejected by Naga's literal validator)
-
-According to the WGSL spec, for scalars, `distance(a, b)` should be equivalent to `abs(a - b)`, which would give a finite result. The test expects this case to succeed since the result is representable.
+**Related PR:** https://github.com/gfx-rs/wgpu/pull/9154
 
 ## `insertBits()`: Override Expression Validation
 
@@ -1190,6 +1114,8 @@ Selector: `webgpu:shader,validation,expression,call,builtin,insertBits:*`
 
 See: `docs/cts-triage/builtin_insertBits.md`
 
+**Related issues:** https://github.com/gfx-rs/wgpu/issues/4507, https://github.com/gfx-rs/wgpu/issues/5474, https://github.com/gfx-rs/wgpu/issues/9152
+
 ---
 
 ## textureSample()
@@ -1203,6 +1129,8 @@ Selectors:
 
 1. Offset validation (10+ failures) - Naga is not properly validating that offset values are within the required range [-8, +7]. This affects `textureSampleBias`, `textureSampleCompare`, `textureSampleCompareLevel`, and `textureSampleLevel`.
 2. Texture type mismatches with offsets (2 failures) - Cube textures used with 3D parameters and offset=true
+
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/9087
 
 ---
 
@@ -1234,27 +1162,15 @@ Selector: `webgpu:shader,validation,expression,call,builtin,textureSampleGrad:*`
 
 See: `docs/cts-triage/builtin_textureSampleGrad.md`
 
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/9087
+
 ---
 
 ## Value Constructors
 
 Selector: `webgpu:shader,validation,expression,call,builtin,value_constructor:*`
 
-**Overall Status:** 476P/7F (98.55% pass rate)
-
-### 1. Value constructors lack must-use validation (5 failures)
-
-**Affected tests:** `must_use:*` subcategory (5/78 failing)
-
-**Root cause:** In `/Users/Andy/Development/wgpu2/naga/src/front/wgsl/lower/mod.rs`, the `call()` function (lines 3565-3573) handles type constructors but does not enforce must-use semantics when they are used as statements. According to WGSL spec, value constructors (like struct constructors, matrix constructors, etc.) must have their results used - they cannot be standalone statements.
-
-**Current behavior:** Naga accepts type constructors as standalone statements without their result being used.
-
-**Expected behavior:** These should fail when `use=false`.
-
-**Additional issue:** Abstract vectors in matrix constructors are not properly type-resolved, causing valid code to be rejected with "Matrix elements must always be floating-point types" error.
-
-### 2. Abstract-float matrix constructor validation gaps (2 failures)
+### 1. Abstract-float matrix constructor validation gaps (2 failures)
 
 Selectors:
 - `webgpu:shader,validation,expression,call,builtin,value_constructor:matrix_column:type1="abstract-float";type2="abstract-float"`
@@ -1265,6 +1181,8 @@ Selectors:
 **Current behavior:** Naga accepts matrix constructors with mismatched dimensions or wrong element count when using abstract-float types.
 
 **Expected behavior:** Matrix constructors should validate that column dimensions match the matrix type and that the correct number of elements are provided.
+
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/9155
 
 ---
 
@@ -1282,6 +1200,8 @@ Selector: `webgpu:shader,validation,functions,restrictions:*`
 - `@id` should only be valid on override declarations (not functions at all)
 - `@workgroup_size` should only be valid on compute entry point functions (functions with `@compute`)
 
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/8898
+
 ## 2. Unrestricted pointer parameters accepted without feature
 
 **What it tests:** Validates that certain pointer expressions (pointers to struct members, array elements within structs) require the `unrestricted_pointer_parameters` WGSL feature to be enabled.
@@ -1289,6 +1209,8 @@ Selector: `webgpu:shader,validation,functions,restrictions:*`
 **Root cause:** Without the `unrestricted_pointer_parameters` feature enabled, Naga should reject complex pointer expressions like `&f_constructible.b` or `&f_struct_with_array.a[1].b`, but currently accepts them.
 
 See: `docs/cts-triage/shader_functions_restrictions.md` for details.
+
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/6875
 
 ---
 
@@ -1345,6 +1267,8 @@ Selectors:
 
 See: `docs/cts-triage/shader_parse_group.md` for detailed analysis.
 
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/9156
+
 ---
 
 # Shader Parse Shadow Builtins
@@ -1355,27 +1279,7 @@ Selector: `webgpu:shader,validation,parse,shadow_builtins:*`
 
 **What it tests:** Validates that WGSL allows user-defined identifiers to shadow built-in functions, types, and keywords in appropriate scoping contexts.
 
-## Root Causes
-
-The 5 failures fall into three distinct categories:
-
-### 1. Function Parameter Shadowing (1 failure)
-
-**Root cause:** Naga's parser rejects using a builtin type like `i32` as both a parameter name and a type in the same function signature. When `i32` is used as a parameter name (e.g., `fn f(i32: i32)`), it should shadow the builtin type for that parameter binding, but the type annotation position should still resolve to the original builtin before the shadow takes effect.
-
-**Example shader:**
-```wgsl
-fn f(f: i32, i32: i32, t: i32) -> i32 { return i32; }
-```
-
-**Error:**
-```
-unexpected expression - needs to be an identifier resolving to a type declaration
-```
-
-**Fix needed:** Update Naga's WGSL parser to properly handle shadowing in function parameter contexts where the parameter name creates a new binding that shadows existing identifiers, but the type position should still resolve to the original builtin.
-
-### 2. Determinant Const Evaluation (2 failures)
+**Note:** Some tests in this suite require external texture support and must be run with `--enable-external-texture` on a platform that supports external textures.
 
 **Selector:** `shadow_hides_builtin:inject="none"` and `inject="sibling"` (determinant subcase)
 
@@ -1388,18 +1292,7 @@ failed to convert expression to a concrete type: Subexpression(s) are not consta
 
 **Fix needed:** Investigate Naga's abstract numeric type materialization for the `determinant` builtin. This is a broader const evaluation issue, not specific to shadowing.
 
-### 3. Texture External Capability (2 failures)
-
-**Selector:** `shadow_hides_builtin_handle_type:inject="none"` and `inject="function"` (texture_external subcase)
-
-**Root cause:** The `TEXTURE_EXTERNAL` capability is not enabled by default in wgpu/Naga.
-
-**Error:**
-```
-Type '' is invalid - Capability TEXTURE_EXTERNAL is required
-```
-
-**Fix needed:** Investigation needed into whether wgpu should enable the `TEXTURE_EXTERNAL` capability by default, whether the CTS runner needs to enable it, or whether this is a broader feature implementation gap.
+**Related issues:** https://github.com/gfx-rs/wgpu/issues/4507, https://github.com/gfx-rs/wgpu/issues/7405, possibly more
 
 ---
 
@@ -1413,7 +1306,7 @@ Selector: `webgpu:shader,validation,statement,phony:*`
 
 **What it tests:** WGSL phony assignments (`_ = expr`) are special statements that discard values. The spec defines specific syntax rules for where they can appear, including within for-loops.
 
-**Related issue:** https://github.com/gfx-rs/wgpu/issues/5474
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/9150
 
 ---
 
@@ -1614,30 +1507,28 @@ Selector: `webgpu:shader,validation,types,*`
 
 **Overall Status:** 95% pass rate (1450P/47F/29S out of 1526 tests covering 10 type areas: alias, array, atomics, enumerant, matrix, pointer, ref, struct, textures, vector)
 
+**Note:** Some tests in this suite require external texture support and must be run with `--enable-external-texture` on a platform that supports external textures.
+
 ## Failure Patterns (47 failures)
 
-### 1. texture_external Not Supported (2 failures)
-
-**Root cause:** The `texture_external` type is not implemented in wgpu/Naga. Affects `alias` and `textures` test suites.
-
-Passes with https://github.com/gfx-rs/wgpu/pull/8901 and `--enable-external-texture`.
-
-### 2. Atomic Validation Gaps (7 failures)
+### 1. Atomic Validation Gaps (7 failures)
 
 **Root cause:** Multiple validation issues with atomic types:
 - Direct references to atomics in expressions (issue #5474) - 3 failures
 - Atomics accepted in read-only storage (should require read_write) - 1 failure
 - Atomics accepted in pointer types with invalid address spaces (private, function, uniform) - 3 failures
 
-### 3. Pointer with write-only access mode to storage should be invalid (2 failures)
+### 2. Pointer with write-only access mode to storage should be invalid (2 failures)
 
-### 4. 16-bit Normalized Storage Texture Formats (36 failures)
+### 3. 16-bit Normalized Storage Texture Formats (36 failures)
 
 **Root cause:** Naga rejects storage textures with 16-bit normalized formats (r16unorm, r16snorm, rg16unorm, rg16snorm, rgba16unorm, rgba16snorm) even though these are valid with the `texture-formats-tier1` feature. This is an architectural issue where shader validation happens before device feature checking.
 
 **Impact:** Highest number of failures in this category.
 
 See: `docs/cts-triage/shader_validation_types.md` for detailed analysis of all 6 failure patterns.
+
+**Related issues:** https://github.com/gfx-rs/wgpu/issues/5474, https://github.com/gfx-rs/wgpu/issues/8122, https://github.com/gfx-rs/wgpu/issues/9148
 
 ---
 
