@@ -237,28 +237,6 @@ Missing re-validation of workgroup size (dimensions, not storage) limits after p
 
 ---
 
-# Compute Pipeline Overrides (Identifier)
-
-Selector: `webgpu:api,validation,compute_pipeline:overrides,identifier:*`
-
-**Overall Status:** 12P/14F/0S (46%/54%/0%)
-
-## 1. Unknown pipeline constant identifiers silently accepted
-
-Selector: `webgpu:api,validation,compute_pipeline:overrides,identifier:*`
-
-**What it tests:** Pipeline constant identifiers must match valid shader overrides.
-
-**Root cause:** Naga's `process_overrides` doesn't validate that provided keys correspond to shader overrides. Unknown keys silently ignored.
-
-**Fix needed:** Add validation to track consumed keys and error on unused keys. Requires new `PipelineConstantError::UnknownIdentifier` variant.
-
-See: `docs/cts-triage/compute_pipeline_overrides.md` for details.
-
-**Related issue:** https://github.com/gfx-rs/wgpu/issues/8906
-
----
-
 # CreateBindGroup Validation
 
 ## Buffer Resource State (0% pass)
@@ -304,7 +282,7 @@ All of the `in_pipeline_layout` tests fail on Vulkan with this symptom, and all
 but the sampler `in_pipeline_layout` tests fail on dx12 with this symptom. This
 may or may not be due to the missing limit support.
 
-**Related issue:** None filed.
+**Related PR:** https://github.com/gfx-rs/wgpu/pull/9118
 
 ### 4. Claimed buffer limits are not supported on Metal
 
@@ -455,7 +433,7 @@ Selector: `webgpu:api,validation,queue,destroyed,*`
 
 Tests expect `writeBuffer` and `writeTexture` to return `undefined`, but the implementation may be returning something else or throwing when it shouldn't.
 
-**Related PR (deno):** <https://github.com/denoland/deno_core/pull/1307>
+**Related PR:** <https://github.com/denoland/deno_core/pull/1307> (This is a Deno PR, which has landed in Deno, but is not present in the version of deno used by deno\_webgpu in the wgpu tree.)
 
 ## 2. Destroyed query set validation missing
 
@@ -667,30 +645,6 @@ Per WebGPU spec:
 
 ---
 
-# Render Pipeline Overrides (83% pass)
-
-Selector: `webgpu:api,validation,render_pipeline,overrides:*`
-
-**Overall Status:** 140P/28F/0S (83.33% pass rate)
-
-## 1. Missing validation for invalid pipeline constant identifiers (28 failures)
-
-**Root cause:** wgpu/Naga silently ignores invalid pipeline constant identifiers instead of reporting validation errors.
-
-**Examples:** Non-existent identifiers, using name when @id exists, null bytes in identifier, wrong Unicode normalization.
-
-**Current behavior:** process_overrides looks up shader overrides but doesn't validate that all provided keys correspond to valid overrides.
-
-**Expected:** Pipeline creation should fail with validation error for invalid identifiers.
-
-**Fix needed:** Add validation in Naga's process_overrides to check all provided keys: correspond to actual override, use correct identifier (numeric for @id, name otherwise), no invalid characters, correct Unicode normalization.
-
-See: `docs/cts-triage/render_pipeline_overrides.md` for details.
-
-**Related issue:** https://github.com/gfx-rs/wgpu/issues/8906
-
----
-
 # Render Pipeline Output Targets (3% pass)
 
 Selectors:
@@ -763,14 +717,6 @@ Selector: `webgpu:shader,validation,expression,binary,bitwise_shift:invalid_type
 **Root cause:** Known issue with Naga allowing direct references to atomics in expressions.
 
 **Related issue:** https://github.com/gfx-rs/wgpu/issues/5474
-
-## 2. Partial evaluation errors (4 failures)
-
-Selector: `webgpu:shader,validation,expression,binary,bitwise_shift:partial_eval_errors:*`
-
-**Root cause:** wgpu is not validating shift amounts during constant evaluation when the shift amount comes from an override value or a literal >= bitwidth.
-
-**Related PR:** https://github.com/gfx-rs/wgpu/pull/8907
 
 ---
 
@@ -893,19 +839,13 @@ Selector: `webgpu:shader,validation,expression,access,vector:*`
 
 Selector: `webgpu:shader,validation,expression,binary,add_sub_mul:*`
 
-**Overall Status:** 859P/45F/0S (95.02% pass)
+**Overall Status:** 859P/24F/0S (95.02% pass)
 
-## 1. u32/i32 Constant Evaluation Incorrectly Rejects Overflow (21 failures)
-
-**Root cause:** Naga uses checked_add/sub/mul and errors on overflow. WGSL spec requires wrapping semantics for integer constant evaluation.
-
-**Related PR:** https://github.com/gfx-rs/wgpu/pull/8912
-
-## 2. f16 Constant Evaluation Doesn't Reject Overflow (21 failures)
+## 1. f16 Constant Evaluation Doesn't Reject Overflow (21 failures)
 
 **Root cause:** Naga performs f16 arithmetic without overflow checks. Accepts infinity results. WGSL spec requires validation error on float overflow in constant evaluation.
 
-## 3. Atomics Can Be Directly Referenced in Expressions (3 failures)
+## 2. Atomics Can Be Directly Referenced in Expressions (3 failures)
 
 **Root cause:** Known issue #5474. Naga allows direct atomic references in expressions when should require atomicLoad/atomicStore builtins.
 
