@@ -294,45 +294,6 @@ textures: 0, samplers: 0 }, ...`.
 
 **Related issue:** https://github.com/gfx-rs/wgpu/issues/8173
 
-## Vertex Shader Storage (25% pass)
-
-Selector:
-- `webgpu:api,validation,createBindGroupLayout:visibility,VERTEX_shader_stage_buffer_type:*`
-- `webgpu:api,validation,createBindGroupLayout:visibility,VERTEX_shader_stage_storage_texture_access:*`
-
-**What it tests:**
-1. Read-only storage buffers (`type="read-only-storage"`) are only allowed if `maxStorageBuffersInVertexStage > 0`
-2. Read-only storage textures (`access="read-only"`) are only allowed if `maxStorageTexturesInVertexStage > 0`
-3. Write-only storage bindings are never allowed (except as a wgpu extension)
-
-**Root cause:** wgpu does not implement the new decoupled binding limits for vertex/fragment stage
-
-See: `docs/cts-triage/createBindGroupLayout_vertex_writable_storage.md`
-
-**Related issue:** https://github.com/gfx-rs/wgpu/issues/8748
-
----
-
-# createBindGroupLayout Visibility
-
-Selector: `webgpu:api,validation,createBindGroupLayout:visibility:*`
-
-**Overall Status:** 2P/6F/0S (25%/75%/0%)
-
-## 1. Missing per-stage storage limits validation
-
-Selector: `webgpu:api,validation,createBindGroupLayout:visibility:*` with visibility > 0
-
-**What it tests:** Per-stage storage limits (maxStorageBuffersInVertexStage, maxStorageBuffersInFragmentStage, maxStorageTexturesInVertexStage, maxStorageTexturesInFragmentStage).
-
-**Root cause:** wgpu uses binary feature flags (VERTEX_STORAGE, FRAGMENT_STORAGE, FRAGMENT_WRITABLE_STORAGE) instead of numeric per-stage limits.
-
-**Fix needed:** Add four per-stage limit fields to Limits struct, add validation in create_bind_group_layout_internal, map device capabilities to limits.
-
-See: `docs/cts-triage/createBindGroupLayout_visibility.md` for details.
-
-**Related issue:** https://github.com/gfx-rs/wgpu/issues/8748
-
 ---
 
 # CreateView Validation (0% pass)
