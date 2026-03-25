@@ -959,25 +959,16 @@ Selector: `webgpu:shader,validation,functions,restrictions:*`
 
 **Overall Status:** 98% pass (if external texture is enabled)
 
-**What it tests:** Validates that attributes can only be applied in appropriate contexts (function declaration, parameter, or return value).
+**What it tests:** Validates function restrictions including attribute placement,
+return types, and parameter matching.
 
-## 1. Invalid function attributes accepted
+## Invalid function attributes accepted (2? failures)
 
 **Root cause:** Naga accepts `@id` and `@workgroup_size` attributes on regular functions when they should only be valid on specific contexts:
 - `@id` should only be valid on override declarations (not functions at all)
 - `@workgroup_size` should only be valid on compute entry point functions (functions with `@compute`)
 
 **Related issue:** https://github.com/gfx-rs/wgpu/issues/8898
-
-## 2. Unrestricted pointer parameters accepted without feature
-
-**What it tests:** Validates that certain pointer expressions (pointers to struct members, array elements within structs) require the `unrestricted_pointer_parameters` WGSL feature to be enabled.
-
-**Root cause:** Without the `unrestricted_pointer_parameters` feature enabled, Naga should reject complex pointer expressions like `&f_constructible.b` or `&f_struct_with_array.a[1].b`, but currently accepts them.
-
-See: `docs/cts-triage/shader_functions_restrictions.md` for details.
-
-**Related issue:** https://github.com/gfx-rs/wgpu/issues/6875
 
 ---
 
@@ -1081,15 +1072,16 @@ Selector: `webgpu:shader,validation,statement,phony:*`
 
 Selector: `webgpu:shader,validation,shader_io,align:*`
 
-**Overall Status:** 296P/1F/4S (98.32% pass rate)
+**Overall Status:** 292P/1F/4S (98.32% pass rate)
 
-**Root cause:** Trailing comma not accepted in `@align` attribute. Parser rejects `@align(4,)` syntax even though WGSL spec allows trailing commas in attribute argument lists.
+**Root cause:** `@align(2147483648)` (2^31) is accepted by naga when the WGSL
+spec requires rejection. The alignment value is parsed as `u32` via
+`const_u32()`, and 2^31 fits in `u32` and is a power of 2, so it passes. The
+WGSL spec requires the `@align` argument to be expressible as `i32`, and 2^31
+exceeds `i32::MAX` (2147483647).
 
-**Fix needed:** Update Naga's attribute parser to accept optional trailing comma before closing parenthesis.
-
-See: `docs/cts-triage/shader_io_align.md`
-
-**Related issue:** https://github.com/gfx-rs/wgpu/issues/8892
+**Fix needed:** Add a range check in `naga/src/front/wgsl/lower/mod.rs` (around
+line 4616) to reject alignment values greater than `i32::MAX`.
 
 ---
 
@@ -1169,24 +1161,29 @@ See: `docs/cts-triage/shader_io_id.md`
 
 Selector: `webgpu:shader,validation,shader_io,interpolate:*`
 
-**Overall Status:** 91% pass rate
+**Overall Status:** 640P/13F/49S (91.2% pass rate)
 
-For detailed triage information, see [shader_io_interpolate_triage.md](shader_io_interpolate_triage.md).
+## 1. Integer IO accepted without explicit `@interpolate(flat)` (12 failures)
 
-The interpolate tests validate the `@interpolate` attribute for shader input/output variables. The attribute controls how values are interpolated between shader stages (flat, perspective, linear) and where sampling occurs (center, centroid, sample, first, either).
+The WGSL spec requires integer-typed user IO to have an explicit
+`@interpolate(flat)` attribute. Naga silently defaults integer types to `Flat`
+interpolation in `naga/src/front/interpolator.rs` (`apply_default_interpolation`,
+line 41), which runs before validation. The validator has an
+`InvalidIntegerInterpolation` error variant in `naga/src/valid/interface.rs:152`
+but it is never emitted anywhere in the codebase.
 
-Tests cover:
-- Valid/invalid combinations of interpolation type and sampling mode
-- Requirement that @interpolate only works with @location (not @builtin)
-- Requirement that integer types must use @interpolate(flat)
-- Prevention of duplicate @interpolate attributes
-- Syntax validation including trailing commas
+**Fix needed:** The WGSL front end needs to distinguish "no `@interpolate`
+specified" from "defaulted" for integer types and emit an error in the former
+case.
 
-With a 91% pass rate, most interpolate validation is working correctly. Failures likely include:
-- Trailing comma support in attribute arguments
-- Possible edge cases in syntax parsing or error reporting
+## 2. Trailing comma with one argument not accepted (1 failure)
 
-**Related issue:** https://github.com/gfx-rs/wgpu/issues/8892
+`@interpolate(flat,)` is valid WGSL but Naga rejects it. In
+`naga/src/front/wgsl/parse/mod.rs` at line 204, after consuming the comma, the
+parser unconditionally tries to parse a second identifier, failing when it finds
+`)`.
+
+**Related issue:** https://github.com/gfx-rs/wgpu/issues/6394
 
 ---
 
