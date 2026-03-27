@@ -23,26 +23,6 @@ not say "CTS selectors" or "Test selectors". Only say "Selector: " or
 
 # Known Issues Reference
 
-## Direct Access to Atomics ([#5474](https://github.com/gfx-rs/wgpu/issues/5474))
-
-Many shader validation tests fail because Naga allows referencing atomics directly in expressions instead of requiring `atomicLoad`, `atomicStore`, etc.
-
-Selectors:
-- `webgpu:shader,validation,expression,binary,add_sub_mul:*`
-- `webgpu:shader,validation,expression,binary,and_or_xor:*`
-- `webgpu:shader,validation,expression,binary,comparison:*`
-- `webgpu:shader,validation,expression,binary,div_rem:*`
-- `webgpu:shader,validation,expression,binary,bitwise_shift:*`
-- `webgpu:shader,validation,expression,call,builtin,abs:*`
-- `webgpu:shader,validation,expression,call,builtin,countLeadingZeros:*`
-- `webgpu:shader,validation,expression,call,builtin,countOneBits:*`
-- `webgpu:shader,validation,expression,call,builtin,countTrailingZeros:*`
-- `webgpu:shader,validation,expression,call,builtin,firstLeadingBit:*`
-- `webgpu:shader,validation,expression,call,builtin,firstTrailingBit:*`
-- `webgpu:shader,validation,expression,call,builtin,reverseBits:*`
-- `webgpu:shader,validation,expression,call,builtin,select:*`
-- `webgpu:shader,validation,statement,increment_decrement:*`
-
 ## Destroyed Resource Validation Error Timing ([#7881](https://github.com/gfx-rs/wgpu/issues/7881))
 
 Tests that check for validation errors when a destroyed resource is used. `wgpu` often reports these errors later than WebGPU requires, causing the tests to fail.
@@ -516,9 +496,7 @@ Selector: `webgpu:shader,validation,decl,var:*`
 
 1. **Trailing comma in address space template (1 failure)** - Parser rejects valid WGSL syntax `var<function,>` with trailing comma. Affects `address_space_access_mode:address_space="function";trailing_comma=true`.
 
-2. **Atomic types in read-only storage (4 failures)** - Naga incorrectly accepts atomic types in `var<storage, read>` declarations. WebGPU spec requires atomics only in read-write storage. Affects `module_scope_types:*` tests with `atomic<i32>` and `atomic<u32>` in `storage_ro`.
-
-3. **Shader stage restrictions (5 failures)** - wgpu accepts variables in shader stages where they're prohibited:
+2. **Shader stage restrictions (5 failures)** - wgpu accepts variables in shader stages where they're prohibited:
    - Write-only storage textures in vertex shaders (`handle_wo`)
    - Read-write storage textures in vertex shaders (`handle_rw`)
    - Read-write storage buffers in vertex shaders (`storage_rw`)
@@ -528,48 +506,6 @@ Selector: `webgpu:shader,validation,decl,var:*`
 See: `docs/cts-triage/shader_validation_decl_var.md`
 
 **Related issues:** https://github.com/gfx-rs/wgpu/issues/8925, https://github.com/gfx-rs/wgpu/issues/9148
-
----
-
-# Bitwise Shift Validation
-
-Selector: `webgpu:shader,validation,expression,binary,bitwise_shift:*`
-
-**Overall Status:** 976P/6F/0S (99.39% pass rate)
-
-## 1. Atomic types in shift operations (2 failures)
-
-Selector: `webgpu:shader,validation,expression,binary,bitwise_shift:invalid_types:type="atomic";*`
-
-**Root cause:** Known issue with Naga allowing direct references to atomics in expressions.
-
-**Related issue:** https://github.com/gfx-rs/wgpu/issues/5474
-
----
-
-# Matrix Expression Validation
-
-Selector: `webgpu:shader,validation,expression,matrix,*`
-
-**Overall Status:** 1676P/205F/0S (89.10% pass rate)
-
-## Remaining Issues (205 failures)
-
-### 1. Constant Evaluation of matrix operations (~185 failures)
-
-Naga does not support matrix add, sub, or multiply in constant evaluation.
-
-**Related issue:** https://github.com/gfx-rs/wgpu/issues/8790
-
-### 2. Atomic Direct Reference (14 failures total)
-
-Naga allows referencing atomics directly instead of requiring atomic functions.
-
-**Related issue:** https://github.com/gfx-rs/wgpu/issues/5474
-
-### 3. Incorrect binary operands accepted in constant evaluation
-
-**Related issue:** https://github.com/gfx-rs/wgpu/issues/8868
 
 ---
 
@@ -662,26 +598,6 @@ Selector: `webgpu:shader,validation,expression,access,vector:*`
 
 ---
 
-# Shader Expression Binary Add/Sub/Mul
-
-Selector: `webgpu:shader,validation,expression,binary,add_sub_mul:*`
-
-**Overall Status:** 859P/24F/0S (95.02% pass)
-
-## 1. f16 Constant Evaluation Doesn't Reject Overflow (21 failures)
-
-**Root cause:** Naga performs f16 arithmetic without overflow checks. Accepts infinity results. WGSL spec requires validation error on float overflow in constant evaluation.
-
-## 2. Atomics Can Be Directly Referenced in Expressions (3 failures)
-
-**Root cause:** Known issue #5474. Naga allows direct atomic references in expressions when should require atomicLoad/atomicStore builtins.
-
-See: `docs/cts-triage/expression_binary_add_sub_mul.md` for details.
-
-**Related issues:** https://github.com/gfx-rs/wgpu/issues/8900, https://github.com/gfx-rs/wgpu/issues/5474
-
----
-
 # Shader Expression Early Evaluation
 
 Selector: `webgpu:shader,validation,expression,early_evaluation:*`
@@ -702,31 +618,6 @@ Where one operand is pure override (should be evaluated early) and the other mix
 See: `docs/cts-triage/expression_early_evaluation.md`
 
 **Related issue:** https://github.com/gfx-rs/wgpu/issues/9002
-
----
-
-# Shader Expression Unary
-
-Selector: `webgpu:shader,validation,expression,unary:*`
-
-**Overall Status:** 301P/3F/0S (99% pass rate)
-
-**Root causes:**
-
-1. **Atomic Direct Reference (2 failures)** - Naga allows direct atomic references in negation/complement operations instead of requiring atomic builtins. See Known Issues Reference (#5474).
-
-2. **Matrix Negation Accepted (1 failure)** - Naga accepts unary negation on matrix types (e.g., `-m`) but WGSL spec only allows negation on scalar and vector types.
-
-**Failing tests:**
-- `arithmetic_negation:invalid_types:type="mat2x2f"` - Matrix negation not rejected
-- `arithmetic_negation:invalid_types:type="atomic"` - Atomic negation not rejected (issue #5474)
-- `bitwise_complement:invalid_types:type="atomic"` - Atomic bitwise complement not rejected (issue #5474)
-
-**Fix needed:** Add validation in Naga's WGSL expression validator to reject unary negation operator on matrix operands.
-
-See: `docs/cts-triage/expression_unary.md`
-
-**Related PR:** https://github.com/gfx-rs/wgpu/pull/9157
 
 ---
 
@@ -875,13 +766,11 @@ Selector: `webgpu:shader,validation,expression,call,builtin,insertBits:*`
 
 2. **Missing override expression validation** (4 failures in `count_offset:*`) - When `offset + count > 32` and either offset or count are override expressions (not runtime variables), wgpu should produce a pipeline creation error but doesn't. The WebGPU spec requires validation at pipeline creation time when override values can be evaluated. Affects cases where offset=33, count=33, or offset+count>32.
 
-3. **Atomic direct reference** (some `typed_arguments:*` failures) - Already tracked in Known Issues Reference #5474. Naga incorrectly allows atomics to be used directly as builtin arguments.
-
 **Fix needed:** Add pipeline creation validation for `insertBits` to check that `offset + count <= 32` when using override expressions.
 
 See: `docs/cts-triage/builtin_insertBits.md`
 
-**Related issues:** https://github.com/gfx-rs/wgpu/issues/4507, https://github.com/gfx-rs/wgpu/issues/5474, https://github.com/gfx-rs/wgpu/issues/9152
+**Related issues:** https://github.com/gfx-rs/wgpu/issues/4507, https://github.com/gfx-rs/wgpu/issues/9152
 
 ---
 
@@ -1278,7 +1167,6 @@ Selector: `webgpu:shader,validation,types,*`
 ### 1. Atomic Validation Gaps (7 failures)
 
 **Root cause:** Multiple validation issues with atomic types:
-- Direct references to atomics in expressions (issue #5474) - 3 failures
 - Atomics accepted in read-only storage (should require read_write) - 1 failure
 - Atomics accepted in pointer types with invalid address spaces (private, function, uniform) - 3 failures
 
@@ -1292,7 +1180,7 @@ Selector: `webgpu:shader,validation,types,*`
 
 See: `docs/cts-triage/shader_validation_types.md` for detailed analysis of all 6 failure patterns.
 
-**Related issues:** https://github.com/gfx-rs/wgpu/issues/5474, https://github.com/gfx-rs/wgpu/issues/8122, https://github.com/gfx-rs/wgpu/issues/9148
+**Related issues:** https://github.com/gfx-rs/wgpu/issues/8122, https://github.com/gfx-rs/wgpu/issues/9148
 
 ---
 
