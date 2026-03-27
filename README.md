@@ -734,26 +734,6 @@ See: `docs/cts-triage/builtin_clamp.md`
 
 ---
 
-## `derivative()`: f16 Type Validation
-
-Selectors:
-- `webgpu:shader,validation,expression,call,builtin,derivatives:invalid_argument_types:type="f16";*`
-- `webgpu:shader,validation,expression,call,builtin,derivatives:invalid_argument_types:type="vec2%3Cf16%3E";*`
-- `webgpu:shader,validation,expression,call,builtin,derivatives:invalid_argument_types:type="vec3%3Cf16%3E";*`
-- `webgpu:shader,validation,expression,call,builtin,derivatives:invalid_argument_types:type="vec4%3Cf16%3E";*`
-
-**Overall Status:** 182P/36F/0S (83.49%/16.51%/0%)
-
-**What these tests validate:** Derivative builtins (dpdx, dpdy, fwidth, etc.) only accept f32 scalar/vector types. Tests verify f16 types rejected.
-
-**Root cause:** Naga's derivative validation checks for float types but doesn't validate width. Accepts any float (f16, f32, f64) when should only accept f32 (width 4).
-
-**Fix needed:** Update validation pattern match at naga/src/valid/expression.rs:1037-1052 to check both kind: Sk::Float AND width: 4.
-
-See: `docs/cts-triage/bulitin_derivative.md` for details.
-
-**Related PR:** https://github.com/gfx-rs/wgpu/pull/9154
-
 ## `insertBits()`: Override Expression Validation
 
 Selector: `webgpu:shader,validation,expression,call,builtin,insertBits:*`
@@ -819,26 +799,6 @@ Selector: `webgpu:shader,validation,expression,call,builtin,textureSampleGrad:*`
 See: `docs/cts-triage/builtin_textureSampleGrad.md`
 
 **Related issue:** https://github.com/gfx-rs/wgpu/issues/9087
-
----
-
-## Value Constructors
-
-Selector: `webgpu:shader,validation,expression,call,builtin,value_constructor:*`
-
-### 1. Abstract-float matrix constructor validation gaps (2 failures)
-
-Selectors:
-- `webgpu:shader,validation,expression,call,builtin,value_constructor:matrix_column:type1="abstract-float";type2="abstract-float"`
-- `webgpu:shader,validation,expression,call,builtin,value_constructor:matrix_elementwise:type1="abstract-float";type2="abstract-float"`
-
-**Root cause:** When constructing matrices with abstract-float vectors or scalars, Naga is not properly validating that dimensions match (validation gap - accepts invalid code).
-
-**Current behavior:** Naga accepts matrix constructors with mismatched dimensions or wrong element count when using abstract-float types.
-
-**Expected behavior:** Matrix constructors should validate that column dimensions match the matrix type and that the correct number of elements are provided.
-
-**Related issue:** https://github.com/gfx-rs/wgpu/issues/9155
 
 ---
 
@@ -974,75 +934,17 @@ line 4616) to reject alignment values greater than `i32::MAX`.
 
 ---
 
-# Shader IO Binding
-
-Selector: `webgpu:shader,validation,shader_io,binding:*`
-
-**Overall Status:** 20P/1F/0S (95.24% pass rate)
-
-**Root cause:** Trailing comma not accepted in `@binding` attribute. Parser rejects `@binding(1,)` syntax even though WGSL spec allows trailing commas in attribute argument lists. Related to issue #8892.
-
-**Fix needed:** Update Naga's attribute parser to accept optional trailing comma before closing parenthesis.
-
-See: `docs/cts-triage/shader_io_binding.md`
-
-**Related issue:** https://github.com/gfx-rs/wgpu/issues/8892
-
----
-
-# Shader IO Builtins
-
-Selector: `webgpu:shader,validation,shader_io,builtins:*`
-
-**Overall Status:** 356P/1F/357S (49.9%/0.14%/50%)
-
-## 1. Trailing comma in @builtin() not accepted
-
-**What it tests:** WGSL syntax allows trailing commas in various contexts.
-
-**Error:** A shader with `@builtin(position,)` (trailing comma) is rejected when it should be accepted.
-
-**Root cause:** Naga's WGSL parser does not accept trailing commas inside `@builtin()` attribute.
-
-**Related issue:** https://github.com/gfx-rs/wgpu/issues/8892
-
----
-
-# Shader IO Group
-
-Selector: `webgpu:shader,validation,shader_io,group:*`
-
-**Overall Status:** 20P/1F/0S (95% pass rate)
-
-**Root cause:** Naga's WGSL parser does not accept trailing commas inside `@group()` attribute parameter lists. The WGSL spec allows optional trailing commas in attribute parameter lists.
-
-**Failing test:** `attr="trailing_comma"` - Tests that `@group(1,)` with trailing comma is accepted.
-
-**Related issue:** https://github.com/gfx-rs/wgpu/issues/6394
-
-**Fix needed:** Update Naga's attribute parser to accept optional trailing comma before closing parenthesis in `@group()` attributes.
-
-See: `docs/cts-triage/shader_io_group.md`
-
-**Related issue:** https://github.com/gfx-rs/wgpu/issues/8892
-
----
-
 # Shader IO ID
 
 Selector: `webgpu:shader,validation,shader_io,id:*`
 
 **Overall Status:** 30P/2F/0S (93.75% pass rate)
 
-**Root causes:** Two validation/parser issues:
-
-1. **Trailing comma not accepted (1 failure)** - Parser rejects `@id(1,)` but WGSL spec allows trailing commas. Part of broader trailing comma issue (#8892).
-
-2. **@id accepted on const declarations (1 failure)** - Naga incorrectly accepts `@id(1) const a = 4;` when @id should only be valid on `override` declarations. Parser collects @id but doesn't validate it's only used with override.
+**@id accepted on const declarations (1 failure)** - Naga incorrectly accepts `@id(1) const a = 4;` when @id should only be valid on `override` declarations. Parser collects @id but doesn't validate it's only used with override.
 
 See: `docs/cts-triage/shader_io_id.md`
 
-**Related issues:** https://github.com/gfx-rs/wgpu/issues/8892, https://github.com/gfx-rs/wgpu/issues/8898
+**Related issues:** https://github.com/gfx-rs/wgpu/issues/8898
 
 ---
 
@@ -1094,22 +996,6 @@ See: `docs/cts-triage/shader_io_layout_constraints.md`
 
 ---
 
-# Shader IO Locations
-
-Selector: `webgpu:shader,validation,shader_io,locations:*`
-
-**Overall Status:** 98% pass rate
-
-**Root cause:** Naga's WGSL parser does not accept trailing commas inside `@location()` attribute parameter lists. The WGSL spec allows optional trailing commas in attribute parameter lists.
-
-**Failing test:** `validation:attr="extra_comma"` - Tests that `@location(1,)` with trailing comma is accepted.
-
-**Fix needed:** Update Naga's attribute parser to accept optional trailing comma before closing parenthesis.
-
-See: `docs/cts-triage/shader_io_locations.md`
-
-**Related issue:** https://github.com/gfx-rs/wgpu/issues/8892
-
 ---
 
 # Shader IO Pipeline Stage
@@ -1142,15 +1028,13 @@ Selector: `webgpu:shader,validation,shader_io,size:*`
 
 **Root causes:** Three validation/parser issues:
 
-1. **Trailing comma not supported (2 failures)** - Parser rejects valid WGSL syntax `@size(4,)` with trailing comma. Fix needed in attribute parser to accept optional trailing comma.
+1. **Large size value rejected (1 failure)** - `@size(2147483647)` (2GB) rejected because it exceeds wgpu's MAX_TYPE_SIZE limit of 1GB. Requires investigation if spec allows 2GB sizes.
 
-2. **Large size value rejected (1 failure)** - `@size(2147483647)` (2GB) rejected because it exceeds wgpu's MAX_TYPE_SIZE limit of 1GB. Requires investigation if spec allows 2GB sizes.
-
-3. **Missing validation for runtime-sized arrays (1 failure)** - `@size` incorrectly accepted on runtime-sized arrays (`array<f32>` without size). Should be rejected since runtime-sized arrays don't have creation-fixed footprint.
+2. **Missing validation for runtime-sized arrays (1 failure)** - `@size` incorrectly accepted on runtime-sized arrays (`array<f32>` without size). Should be rejected since runtime-sized arrays don't have creation-fixed footprint.
 
 See: `docs/cts-triage/shader_io_size.md`
 
-**Related issues:** https://github.com/gfx-rs/wgpu/issues/8892, https://github.com/gfx-rs/wgpu/issues/8898
+**Related issues:** https://github.com/gfx-rs/wgpu/issues/8898
 
 ---
 
@@ -1246,4 +1130,3 @@ if desc.count == 0 {
 **Related issue:** https://github.com/gfx-rs/wgpu/issues/9001
 
 ---
-
