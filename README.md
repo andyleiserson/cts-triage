@@ -132,6 +132,25 @@ misc
 - [ ] `any`
 - [ ] `quantizeToF16`
 
+## `GPU*Usage` Constants Not Enumerable ([deno#33846](https://github.com/denoland/deno/issues/33846))
+
+`deno_webgpu` declares `GPUBufferUsage` and `GPUTextureUsage` as ES classes
+whose constants are static getters, which JavaScript creates as
+non-enumerable properties. WebIDL requires interface constants to be
+enumerable own data properties. Tests that derive the legal usage-bit set via
+`Object.values(GPU*Usage)` therefore see an empty set and demand a validation
+error for every usage bit passed to `createBuffer()`/`createTexture()`,
+including bits that are perfectly legal. `wgpu` creates the resources
+correctly and is not at fault; a spec-conformant `GPU*Usage` would make these
+selectors pass unchanged.
+
+Selectors:
+- `webgpu:api,validation,buffer,create:new_usages:*`
+- `webgpu:api,validation,createTexture:new_usages:*`
+
+See: `docs/cts-triage/buffer_create.md` and
+`docs/cts-triage/createTexture_new_usages.md` for detailed analysis.
+
 ---
 
 # Capability Checks
@@ -449,20 +468,6 @@ Per WebGPU spec:
 **Fix needed:** Implement default-aware comparison that treats `None` as `Some(Center)` when interpolation is `Perspective` or `Linear`.
 
 **Related issue:** https://github.com/gfx-rs/wgpu/issues/9143
-
----
-
-# Render Pipeline Output Targets (3% pass)
-
-Selectors:
-- `webgpu:api,validation,render_pipeline,fragment_state:pipeline_output_targets:*`
-- `webgpu:api,validation,render_pipeline,fragment_state:pipeline_output_targets,blend:*`
-
-Root causes:
-- Color target without shader output requires writeMask=0 (66 failures).
-- Blend factors reading source alpha require vec4 output (100 failures).
-
-**Related issue:** https://github.com/gfx-rs/wgpu/issues/9147
 
 ---
 
